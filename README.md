@@ -38,7 +38,7 @@ See the [installation guide](https://psxsplash.github.io/docs/getting-started/in
 
 ## Contributing
 
-This has been a one-person project and it has grown over my head. Pull requests are very welcome. See the [contributing guide](https://psxsplash.github.io/docs/reference/contributing/) for areas where help is needed.
+This has been a one-person project and it has grown over my head. Pull requests are very welcome. See the [contributing guide](https://psxsplash.github.io/docs/latest/reference/contributing/) for areas where help is needed.
 
 If you build something with SplashEdit, please share it on [PSX.Dev](https://psx.dev) or the Bandwidth Discord server!
 
