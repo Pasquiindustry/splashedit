@@ -58,7 +58,7 @@ namespace SplashEdit.RuntimeCode
         public bool IsPlatform => isPlatform;
         public int UVOffsetMaterial => uvOffsetMaterial;
 
-        private readonly Dictionary<(int, PSXBPP), PSXTexture2D> cache = new();
+        private readonly Dictionary<(EntityId, PSXBPP), PSXTexture2D> cache = new();
 
         public void CreatePSXTextures2D()
         {
@@ -78,7 +78,7 @@ namespace SplashEdit.RuntimeCode
 
                 if (tex2D == null) continue;
 
-                if (cache.TryGetValue((tex2D.GetInstanceID(), bitDepth), out var cached))
+                if (cache.TryGetValue((tex2D.GetEntityId(), bitDepth), out var cached))
                 {
                     Textures.Add(cached);
                 }

@@ -42,9 +42,9 @@ namespace SplashEdit.EditorCode
         }
 
         [OnOpenAsset]
-        public static bool OnOpenAsset(int instanceID, int line)
+        public static bool OnOpenAsset(EntityId instanceID, int line)
         {
-            var obj = EditorUtility.InstanceIDToObject(instanceID);
+            var obj = EditorUtility.EntityIdToObject(instanceID);
             if (obj is PSXAnimationClip || obj is PSXCutsceneClip)
             {
                 Open((ScriptableObject)obj);

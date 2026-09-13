@@ -85,7 +85,7 @@ namespace SplashEdit.RuntimeCode
 
             // List to track unique textures and their indices
             List<PSXTexture2D> uniqueTextures = new List<PSXTexture2D>();
-            Dictionary<(int, PSXBPP), int> textureToIndexMap = new Dictionary<(int, PSXBPP), int>();
+            Dictionary<(EntityId, PSXBPP), int> textureToIndexMap = new Dictionary<(EntityId, PSXBPP), int>();
             // Track duplicates so we can propagate packing data after placement
             List<(PSXTexture2D duplicate, int uniqueIndex)> duplicates = new List<(PSXTexture2D, int)>();
 
@@ -113,7 +113,7 @@ namespace SplashEdit.RuntimeCode
                 // Process each texture in descending order of area.
                 foreach (var texture in group.OrderByDescending(tex => tex.QuantizedWidth * tex.Height))
                 {
-                    var textureKey = (texture.OriginalTexture.GetInstanceID(), texture.BitDepth);
+                    var textureKey = (texture.OriginalTexture.GetEntityId(), texture.BitDepth);
 
                     // Check if we've already processed this texture
                     if (textureToIndexMap.TryGetValue(textureKey, out int existingIndex))
@@ -152,7 +152,7 @@ namespace SplashEdit.RuntimeCode
 
                 for (int i = 0; i < obj.Textures.Count; i++)
                 {
-                    var textureKey = (obj.Textures[i].OriginalTexture.GetInstanceID(), obj.Textures[i].BitDepth);
+                    var textureKey = (obj.Textures[i].OriginalTexture.GetEntityId(), obj.Textures[i].BitDepth);
                     if (textureToIndexMap.TryGetValue(textureKey, out int newIndex))
                     {
                         oldToNewIndexMap[i] = newIndex;
