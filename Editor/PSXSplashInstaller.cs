@@ -16,7 +16,7 @@ namespace SplashEdit.EditorCode
     /// </summary>
     public static class PSXSplashInstaller
     {
-        // ───── Public config ─────
+        // ----- Public config -----
         public static readonly string RepoOwner = "psxsplash";
         public static readonly string RepoName = "psxsplash";
         public static readonly string RepoUrl = "https://github.com/psxsplash/psxsplash.git";
@@ -26,7 +26,7 @@ namespace SplashEdit.EditorCode
         private static readonly string GitHubApiReleasesUrl =
             $"https://api.github.com/repos/{RepoOwner}/{RepoName}/releases";
 
-        // ───── Cached release list ─────
+        // ----- Cached release list -----
         private static List<ReleaseInfo> _cachedReleases = new List<ReleaseInfo>();
         private static bool _isFetchingReleases;
 
@@ -49,9 +49,9 @@ namespace SplashEdit.EditorCode
             FullInstallPath = Path.Combine(Application.dataPath, "psxsplash");
         }
 
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
         // Queries
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
 
         /// <summary>Is the native project cloned on disk?</summary>
         public static bool IsInstalled()
@@ -83,13 +83,13 @@ namespace SplashEdit.EditorCode
             }
         }
 
-        // ═══════════════════════════════════════════════════════════════
-        // Fetch Releases (HTTP — no git required)
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
+        // Fetch Releases (HTTP - no git required)
+        // ---------------------------------------------------------------
 
         /// <summary>
         /// Fetches the list of releases from the GitHub REST API.
-        /// Does NOT require git — uses UnityWebRequest.
+        /// Does NOT require git - uses UnityWebRequest.
         /// </summary>
         public static async Task<List<ReleaseInfo>> FetchReleasesAsync()
         {
@@ -124,9 +124,9 @@ namespace SplashEdit.EditorCode
             }
         }
 
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
         // Install / Clone at a specific release tag
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
 
         /// <summary>
         /// Clones the repository at the specified release tag with --recursive.
@@ -185,7 +185,7 @@ namespace SplashEdit.EditorCode
         {
             if (!IsInstalled())
             {
-                UnityEngine.Debug.LogError("[PSXSplashInstaller] Not installed — clone first.");
+                UnityEngine.Debug.LogError("[PSXSplashInstaller] Not installed - clone first.");
                 return false;
             }
 
@@ -245,9 +245,9 @@ namespace SplashEdit.EditorCode
             }
         }
 
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
         // Git helpers
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
 
         /// <summary>
         /// Checks whether git is available on the system PATH.
@@ -369,9 +369,9 @@ namespace SplashEdit.EditorCode
             }
         }
 
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
         // HTTP helpers (no git needed)
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
 
         private static Task<string> HttpGetAsync(string url)
         {
@@ -396,9 +396,9 @@ namespace SplashEdit.EditorCode
             return tcs.Task;
         }
 
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
         // JSON parsing (minimal, avoids external dependency)
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
 
         /// <summary>
         /// Minimal JSON parser for the GitHub releases API response.

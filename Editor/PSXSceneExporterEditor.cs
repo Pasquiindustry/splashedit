@@ -14,6 +14,7 @@ namespace SplashEdit.EditorCode
         private SerializedProperty fogColorProp;
         private SerializedProperty fogDensityProp;
         private SerializedProperty sceneTypeProp;
+        private SerializedProperty sceneNetworkIdProp; // Added: Networking ID prop
         private SerializedProperty cutscenesProp;
         private SerializedProperty animationsProp;
         private SerializedProperty loadingScreenProp;
@@ -22,6 +23,7 @@ namespace SplashEdit.EditorCode
         private SerializedProperty bvhDepthProp;
 
         private bool showFog = true;
+        private bool showNetworking = true; // Added: Foldout toggle for Networking
         private bool showCutscenes = true;
         private bool showDebug = false;
 
@@ -33,6 +35,7 @@ namespace SplashEdit.EditorCode
             fogColorProp = serializedObject.FindProperty("FogColor");
             fogDensityProp = serializedObject.FindProperty("FogDensity");
             sceneTypeProp = serializedObject.FindProperty("SceneType");
+            sceneNetworkIdProp = serializedObject.FindProperty("SceneNetworkId"); // Added: Find networking prop
             cutscenesProp = serializedObject.FindProperty("Cutscenes");
             animationsProp = serializedObject.FindProperty("Animations");
             loadingScreenProp = serializedObject.FindProperty("LoadingScreenPrefab");
@@ -55,6 +58,8 @@ namespace SplashEdit.EditorCode
 
             DrawSceneSettings();
             PSXEditorStyles.DrawSeparator(6, 6);
+            DrawNetworkingSection(); // Added: Draw Networking section
+            PSXEditorStyles.DrawSeparator(6, 6);
             DrawFogSection(exporter);
             PSXEditorStyles.DrawSeparator(6, 6);
             DrawCutscenesSection();
@@ -65,7 +70,7 @@ namespace SplashEdit.EditorCode
             PSXEditorStyles.DrawSeparator(6, 6);
             DrawDebugSection();
             PSXEditorStyles.DrawSeparator(6, 6);
-            DrawSceneStats();
+            DrawSceneStats(exporter); // Updated: Pass exporter to access post-export stats
 
             serializedObject.ApplyModifiedProperties();
         }
@@ -103,6 +108,31 @@ namespace SplashEdit.EditorCode
                 GUILayout.FlexibleSpace();
                 EditorGUILayout.EndHorizontal();
             }
+        }
+
+        // Added: Dedicated Networking Section
+        private void DrawNetworkingSection()
+        {
+            showNetworking = EditorGUILayout.Foldout(showNetworking, "Networking", true, PSXEditorStyles.FoldoutHeader);
+            if (!showNetworking) return;
+
+            EditorGUI.indentLevel++;
+            EditorGUILayout.PropertyField(sceneNetworkIdProp, new GUIContent("Scene Network Id", 
+                "Stable id for this scene on the network. Leave empty to fall back to the derived hash."));
+            
+            if (string.IsNullOrEmpty(sceneNetworkIdProp.stringValue))
+            {
+                EditorGUILayout.LabelField(
+                    "<color=#aaaaaa>Using derived hash (changes when scene objects change).</color>",
+                    PSXEditorStyles.RichLabel);
+            }
+            else
+            {
+                EditorGUILayout.LabelField(
+                    $"<color=#88cc88>Locked ID: {sceneNetworkIdProp.stringValue}</color>",
+                    PSXEditorStyles.RichLabel);
+            }
+            EditorGUI.indentLevel--;
         }
 
         private void DrawFogSection(PSXSceneExporter exporter)
@@ -187,7 +217,8 @@ namespace SplashEdit.EditorCode
             EditorGUI.indentLevel--;
         }
 
-        private void DrawSceneStats()
+        // Updated: Added post-export triangle count display
+        private void DrawSceneStats(PSXSceneExporter exporter)
         {
             var exporters = FindObjectsByType<PSXObjectExporter>(FindObjectsSortMode.None);
             int total = exporters.Length;
@@ -200,6 +231,14 @@ namespace SplashEdit.EditorCode
             EditorGUILayout.LabelField(
                 $"<b>{active}</b>/{total} objects  |  <b>{staticCol}</b> static  <b>{dynamicCol}</b> dynamic  <b>{triggerBoxes}</b> triggers",
                 PSXEditorStyles.RichLabel);
+
+            // Display Last Export stats if an export has been run
+            if (exporter.LastExportTriangleCount > 0)
+            {
+                EditorGUILayout.LabelField(
+                    $"Last Export: <b>{exporter.LastExportTriangleCount}</b> triangles",
+                    PSXEditorStyles.RichLabel);
+            }
             EditorGUILayout.EndVertical();
         }
 

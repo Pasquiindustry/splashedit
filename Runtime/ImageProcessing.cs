@@ -29,16 +29,43 @@ namespace SplashEdit.RuntimeCode
         }
 
         /// <summary>
+        /// A source pixel is transparent below this alpha. The PS1 has no alpha
+        /// channel - a texel is either drawn or it is not - so a cutout has to
+        /// pick a threshold somewhere, and halfway is the least surprising place.
+        /// </summary>
+        public const float CutoutAlphaThreshold = 0.5f;
+
+        /// <summary>
         /// Quantizes the given texture into a limited number of colors and dithers it.
         /// </summary>
         /// <param name="texture">The texture to be quantized.</param>
         /// <param name="maxColors">The maximum number of colors allowed in the quantized texture.</param>
+        /// <param name="cutout">
+        /// Reserve palette index 0 for transparency and map every pixel with
+        /// alpha below <see cref="CutoutAlphaThreshold"/> to it.
+        ///
+        /// Needed by anything with a hole in it - a sprite, an icon, a decal.
+        /// Without it alpha is simply discarded (the colour channels of a fully
+        /// transparent pixel are quantized like any other), and the result is a
+        /// character in an opaque rectangle. Costs one palette entry: a 4-bit
+        /// cutout gets 15 colours, not 16.
+        /// </param>
         /// <returns>A QuantizedResult containing the indices of the quantized colors and the palette of unique colors.</returns>
-        public static QuantizedResult Quantize(Texture2D texture, int maxColors)
+        public static QuantizedResult Quantize(Texture2D texture, int maxColors, bool cutout = false)
         {
             int width = texture.width, height = texture.height;
             Color[] pixels = texture.GetPixels();
             int[,] indices = new int[width, height];
+
+            if (cutout)
+            {
+                // Index 0 is the transparent one, so the opaque pixels share what
+                // is left. Quantizing the transparent pixels' colours alongside
+                // them would waste entries on pixels nobody will ever see, and
+                // would drag the palette toward whatever colour the artist left
+                // in the invisible background.
+                return QuantizeCutout(pixels, width, height, maxColors);
+            }
 
             List<Vector3> uniqueColors = pixels.Select(c => new Vector3(c.r, c.g, c.b)).Distinct().ToList();
             if (uniqueColors.Count <= maxColors) return ConvertToOutput(pixels, width, height);
@@ -61,6 +88,74 @@ namespace SplashEdit.RuntimeCode
                 }
             }
 
+
+            return new QuantizedResult { Indices = indices, Palette = palette };
+        }
+
+        /// <summary>
+        /// Quantize only the opaque pixels, into palette entries 1..maxColors-1.
+        /// Entry 0 is left for the caller to write as the PS1's transparent
+        /// colour (0x0000).
+        /// </summary>
+        private static QuantizedResult QuantizeCutout(Color[] pixels, int width, int height, int maxColors)
+        {
+            int[,] indices = new int[width, height];
+            List<Vector3> palette = new List<Vector3> { Vector3.zero };  // [0] = transparent
+
+            int opaqueBudget = maxColors - 1;
+            List<Vector3> opaqueColors = pixels
+                .Where(c => c.a >= CutoutAlphaThreshold)
+                .Select(c => new Vector3(c.r, c.g, c.b))
+                .Distinct()
+                .ToList();
+
+            if (opaqueColors.Count == 0)
+            {
+                // Entirely transparent. Legal, if pointless; do not divide by it.
+                return new QuantizedResult { Indices = indices, Palette = palette };
+            }
+
+            bool exact = opaqueColors.Count <= opaqueBudget;
+            palette.AddRange(exact ? opaqueColors : KMeans(opaqueColors, opaqueBudget));
+
+            // Match against the opaque colours only. Including entry 0 would let
+            // a dark pixel snap to "transparent" and punch a hole in the sprite.
+            List<Vector3> opaquePalette = palette.GetRange(1, palette.Count - 1);
+            KDTree kdTree = exact ? null : new KDTree(opaquePalette);
+            Dictionary<Vector3, int> exactLookup = null;
+            if (exact)
+            {
+                exactLookup = new Dictionary<Vector3, int>();
+                for (int i = 0; i < opaquePalette.Count; i++) exactLookup[opaquePalette[i]] = i;
+            }
+
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    Color src = pixels[y * width + x];
+                    if (src.a < CutoutAlphaThreshold)
+                    {
+                        indices[x, y] = 0;
+                        continue;
+                    }
+
+                    Vector3 oldColor = new Vector3(src.r, src.g, src.b);
+                    int opaqueIndex = exact
+                        ? exactLookup[oldColor]
+                        : kdTree.FindNearestIndex(oldColor);
+                    indices[x, y] = opaqueIndex + 1;  // shift past the transparent entry
+
+                    if (!exact)
+                    {
+                        // Diffuse the error, but never into a transparent pixel:
+                        // its colour is never drawn, so pushing error there just
+                        // loses it.
+                        Vector3 error = oldColor - opaquePalette[opaqueIndex];
+                        PropagateError(pixels, width, height, x, y, error);
+                    }
+                }
+            }
 
             return new QuantizedResult { Indices = indices, Palette = palette };
         }

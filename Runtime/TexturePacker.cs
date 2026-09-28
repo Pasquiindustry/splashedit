@@ -54,7 +54,7 @@ namespace SplashEdit.RuntimeCode
             _reservedAreas.Add(framebuffers[0]);
             _reservedAreas.Add(framebuffers[1]);
 
-            // Reserve the font column (x=960-1023) — custom fonts and the system font
+            // Reserve the font column (x=960-1023) - custom fonts and the system font
             // are placed here by PSXUIExporter, outside the packer's control.
             _reservedAreas.Add(new Rect(960, 0, 64, VramHeight));
 

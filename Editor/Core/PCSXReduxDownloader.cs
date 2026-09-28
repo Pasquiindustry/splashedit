@@ -12,8 +12,8 @@ namespace SplashEdit.EditorCode
     /// Downloads and installs PCSX-Redux from the official distrib.app CDN.
     /// Mirrors the logic from pcsx-redux.js (the official download script).
     /// 
-    /// Flow: fetch platform manifest → find latest build ID → fetch build manifest →
-    ///       get download URL → download zip → extract to .tools/pcsx-redux/
+    /// Flow: fetch platform manifest -> find latest build ID -> fetch build manifest ->
+    ///       get download URL -> download zip -> extract to .tools/pcsx-redux/
     /// </summary>
     public static class PCSXReduxDownloader
     {
@@ -94,7 +94,7 @@ namespace SplashEdit.EditorCode
                 string downloadUrl = $"https://distrib.app{downloadPath}";
                 log?.Invoke($"Downloading: {downloadUrl}");
 
-                // Step 3: Download — use the real extension from the URL
+                // Step 3: Download - use the real extension from the URL
                 string ext = ".zip";
                 if (downloadPath.EndsWith(".tar.gz")) ext = ".tar.gz";
                 else if (downloadPath.EndsWith(".dmg")) ext = ".dmg";
@@ -120,7 +120,7 @@ namespace SplashEdit.EditorCode
                 log?.Invoke($"Downloaded to {tempFile}");
                 EditorUtility.DisplayProgressBar("Installing PCSX-Redux", "Extracting...", 0.9f);
 
-                // Step 4: Extract — handle zip, tar.gz, and dmg
+                // Step 4: Extract - handle zip, tar.gz, and dmg
                 string installDir = SplashBuildPaths.PCSXReduxDir;
                 if (Directory.Exists(installDir))
                     Directory.Delete(installDir, true);
@@ -166,7 +166,7 @@ namespace SplashEdit.EditorCode
                 }
                 else
                 {
-                    // The zip might have a nested directory — try to find the exe
+                    // The zip might have a nested directory - try to find the exe
                     SplashEdit.RuntimeCode.Utils.FixNestedDirectory(installDir);
                     if (SplashBuildPaths.IsPCSXReduxInstalled())
                     {
@@ -254,7 +254,7 @@ namespace SplashEdit.EditorCode
 
             // SplashBuildPaths.PCSXReduxBinary expects a flat "pcsx-redux" executable,
             // but distrib.app ships a .app bundle. This wrapper bridges the gap.
-            // It also handles process cleanup — without pkill, PCSX-Redux sometimes
+            // It also handles process cleanup - without pkill, PCSX-Redux sometimes
             // survives Unity's Process.Kill and blocks the port on next launch.
             if (File.Exists(appBinary))
             {

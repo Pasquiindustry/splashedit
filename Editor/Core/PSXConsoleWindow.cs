@@ -19,14 +19,14 @@ namespace SplashEdit.EditorCode
         private const int MAX_LINES = 2000;
         private const int TRIM_AMOUNT = 500;
 
-        // ── Shared state (set by SplashControlPanel) ──
+        // -- Shared state (set by SplashControlPanel) --
         private static Process _process;
         private static readonly List<LogLine> _lines = new List<LogLine>();
         private static readonly object _lock = new object();
         private static volatile bool _autoScroll = true;
         private static volatile bool _reading;
 
-        // ── Instance state ──
+        // -- Instance state --
         private Vector2 _scrollPos;
         private string _filterText = "";
         private bool _showStdout = true;
@@ -37,7 +37,7 @@ namespace SplashEdit.EditorCode
         private GUIStyle _monoStyleSelected;
         private int _lastLineCount;
 
-        // ── Selection state (for shift-click range and right-click copy) ──
+        // -- Selection state (for shift-click range and right-click copy) --
         private int _selectionAnchor = -1;  // first clicked line index (into _lines)
         private int _selectionEnd = -1;     // last shift-clicked line index (into _lines)
 
@@ -48,9 +48,9 @@ namespace SplashEdit.EditorCode
             public string timestamp;
         }
 
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
         // Menu
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
 
         [MenuItem(MENU_PATH, false, 10)]
         public static void ShowWindow()
@@ -61,9 +61,9 @@ namespace SplashEdit.EditorCode
             window.Show();
         }
 
-        // ═══════════════════════════════════════════════════════════════
-        // Public API — called by SplashControlPanel
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
+        // Public API - called by SplashControlPanel
+        // ---------------------------------------------------------------
 
         /// <summary>
         /// Adds a line to the console from any source (serial host, emulator fallback, etc.).
@@ -127,9 +127,9 @@ namespace SplashEdit.EditorCode
             _process = null;
         }
 
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
         // Async readers
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
 
         private static void StartReader(System.IO.StreamReader reader, bool isError)
         {
@@ -161,7 +161,7 @@ namespace SplashEdit.EditorCode
                 }
                 catch (Exception)
                 {
-                    // Stream closed — normal when process exits
+                    // Stream closed - normal when process exits
                 }
             })
             {
@@ -171,9 +171,9 @@ namespace SplashEdit.EditorCode
             thread.Start();
         }
 
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
         // Window lifecycle
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
 
         private void OnEnable()
         {
@@ -197,9 +197,9 @@ namespace SplashEdit.EditorCode
             }
         }
 
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
         // GUI
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
 
         private void EnsureStyles()
         {
@@ -278,7 +278,7 @@ namespace SplashEdit.EditorCode
             bool alive = _process != null && !_process.HasExited;
             var statusColor = GUI.contentColor;
             GUI.contentColor = alive ? Color.green : Color.gray;
-            GUILayout.Label(alive ? "● Live" : "● Stopped", EditorStyles.toolbarButton, GUILayout.Width(60));
+            GUILayout.Label(alive ? "* Live" : "* Stopped", EditorStyles.toolbarButton, GUILayout.Width(60));
             GUI.contentColor = statusColor;
 
             // Filter
@@ -293,7 +293,7 @@ namespace SplashEdit.EditorCode
             _wrapLines = GUILayout.Toggle(_wrapLines, "Wrap", EditorStyles.toolbarButton, GUILayout.Width(40));
 
             // Auto-scroll
-            _autoScroll = GUILayout.Toggle(_autoScroll, "Auto↓", EditorStyles.toolbarButton, GUILayout.Width(50));
+            _autoScroll = GUILayout.Toggle(_autoScroll, "Autov", EditorStyles.toolbarButton, GUILayout.Width(50));
 
             // Clear
             if (GUILayout.Button("Clear", EditorStyles.toolbarButton, GUILayout.Width(45)))

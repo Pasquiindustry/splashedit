@@ -17,38 +17,38 @@ namespace SplashEdit.RuntimeCode
     /// </summary>
     public class PSXNavRegionBuilder
     {
-        // ────────────────────────────────────────────────────────────────
+        // ----------------------------------------------------------------
         // Agent parameters
-        // ────────────────────────────────────────────────────────────────
+        // ----------------------------------------------------------------
         public float AgentHeight = 1.8f;
         public float AgentRadius = 0.3f;
         public float MaxStepHeight = 0.35f;
         public float WalkableSlopeAngle = 46.0f;
 
-        // ────────────────────────────────────────────────────────────────
+        // ----------------------------------------------------------------
         // Voxelization parameters
-        // ────────────────────────────────────────────────────────────────
+        // ----------------------------------------------------------------
         public float CellSize = 0.05f;
         public float CellHeight = 0.025f;
 
-        // ────────────────────────────────────────────────────────────────
+        // ----------------------------------------------------------------
         // Region parameters (previously hardcoded)
-        // ────────────────────────────────────────────────────────────────
+        // ----------------------------------------------------------------
         public int MinRegionArea = 8;
         public int MergeRegionArea = 20;
         public float MaxSimplifyError = 1.3f;
         public float MaxEdgeLength = 12.0f;
         public NavPartitionMethod PartitionMethod = NavPartitionMethod.Watershed;
 
-        // ────────────────────────────────────────────────────────────────
+        // ----------------------------------------------------------------
         // Detail mesh parameters (decoupled from CellHeight)
-        // ────────────────────────────────────────────────────────────────
+        // ----------------------------------------------------------------
         public float DetailSampleDist = 6.0f;   // Multiplier of CellSize
         public float DetailMaxError = 0.025f;    // World units, independent of CellHeight
 
-        // ────────────────────────────────────────────────────────────────
+        // ----------------------------------------------------------------
         // Plane fit validation
-        // ────────────────────────────────────────────────────────────────
+        // ----------------------------------------------------------------
         public float MaxPlaneError = 0.15f;
 
         public const int MaxVertsPerRegion = 8;

@@ -10,7 +10,7 @@ using Debug = UnityEngine.Debug;
 namespace SplashEdit.EditorCode
 {
     /// <summary>
-    /// Downloads and manages mkpsxiso — the tool that builds PlayStation CD images
+    /// Downloads and manages mkpsxiso - the tool that builds PlayStation CD images
     /// from an XML catalog. Used for the ISO build target.
     /// https://github.com/Lameguy64/mkpsxiso
     /// </summary>

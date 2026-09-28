@@ -24,7 +24,8 @@ namespace SplashEdit.RuntimeCode
         /// audio without directly referencing the Editor assembly.
         /// Signature: (AudioClip clip, int sampleRate, bool loop) => byte[] adpcm
         /// </summary>
-        public static Func<AudioClip, int, bool, byte[]> AudioConvertDelegate;
+        // (clip, sampleRate, loop, trimLeadingSilence) -> raw SPU ADPCM
+        public static Func<AudioClip, int, bool, bool, byte[]> AudioConvertDelegate;
 
 
         public float GTEScaling = 100.0f;
@@ -42,6 +43,13 @@ namespace SplashEdit.RuntimeCode
         [Header("Scene Type")]
         [Tooltip("Exterior uses BVH frustum culling. Interior uses room/portal occlusion.")]
         public PSXSceneType SceneType = PSXSceneType.Exterior;
+
+        [Header("Networking")]
+        [Tooltip("Stable id for this scene on the network. Consoles must agree on it to share " +
+                 "a room, so pick a name and DO NOT change it once players have the disc " +
+                 "(e.g. \"mygame/lobby\"). Leave empty to fall back to the derived hash, which " +
+                 "changes whenever you add an object to the scene.")]
+        public string SceneNetworkId = "";
 
         [Header("Cutscenes")]
         [Tooltip("Cutscene clips to include in this scene's splashpack. Only these will be exported.")]
@@ -71,8 +79,9 @@ namespace SplashEdit.RuntimeCode
         private PSXInteractable[] _interactables;
         private PSXAudioClip[] _audioSources;
         private PSXTriggerBox[] _triggerBoxes;
+        private PSXAgent[] _agents;
 
-        // ── Post-export data for memory analysis ──
+        // -- Post-export data for memory analysis --
         /// <summary>Texture atlases from the last export (null before first export).</summary>
         public TextureAtlas[] LastExportAtlases => _atlases;
         /// <summary>Custom font data from the last export.</summary>
@@ -102,6 +111,7 @@ namespace SplashEdit.RuntimeCode
         // Phase 6: UI canvases
         private PSXCanvasData[] _canvases;
         private PSXFontData[] _fonts;
+        private List<PSXSpriteSheet> _spriteSheets;
 
         private PSXData _psxData;
 
@@ -170,7 +180,7 @@ namespace SplashEdit.RuntimeCode
             // FindObjectsByType, others don't. We filter them out, then add back
             // exactly once at the end.
             // Also exclude any PSXObjectExporter that lives on or under a
-            // PSXSkinnedObjectExporter — only the proxy should represent those meshes.
+            // PSXSkinnedObjectExporter - only the proxy should represent those meshes.
             var proxySet = new System.Collections.Generic.HashSet<PSXObjectExporter>();
             foreach (var skinExp in _skinnedExporters)
             {
@@ -196,13 +206,13 @@ namespace SplashEdit.RuntimeCode
                 }
                 if (underSkinned)
                 {
-                    Debug.Log($"[Export] Skipping PSXObjectExporter on '{exp.name}' — covered by PSXSkinnedObjectExporter proxy");
+                    Debug.Log($"[Export] Skipping PSXObjectExporter on '{exp.name}' - covered by PSXSkinnedObjectExporter proxy");
                     continue;
                 }
 
                 exportersList.Add(exp);
             }
-            // Append proxies at the end — guaranteed exactly once
+            // Append proxies at the end - guaranteed exactly once
             exportersList.AddRange(proxySet);
             _exporters = exportersList.ToArray();
             try
@@ -219,6 +229,7 @@ namespace SplashEdit.RuntimeCode
             _interactables = FindObjectsByType<PSXInteractable>(FindObjectsSortMode.None);
             _audioSources = FindObjectsByType<PSXAudioClip>(FindObjectsSortMode.None);
             _triggerBoxes = FindObjectsByType<PSXTriggerBox>(FindObjectsSortMode.None);
+            _agents = FindObjectsByType<PSXAgent>(FindObjectsSortMode.None);
 
             // Collect UI image textures for VRAM packing alongside 3D textures
             PSXUIImage[] uiImages = FindObjectsByType<PSXUIImage>(FindObjectsSortMode.None);
@@ -235,6 +246,31 @@ namespace SplashEdit.RuntimeCode
                 }
             }
 
+            // Sprite sheets ride the SAME atlas as UI images and 3D textures, so
+            // they go into the same packing list. CollectSheets throws on bad
+            // authoring (a grid that does not divide the texture, a duplicate
+            // name, an animation running off the end) - better here, naming the
+            // asset, than as an assert on the console.
+            _spriteSheets = PSXSpriteExporter.CollectSheets();
+            // The tilemap's tileset must live in the SAME sheet table, so the
+            // engine can resolve it by index. Pull it in here if no PSXSprite
+            // already referenced it - otherwise the map would export with a
+            // dangling tileset index. Distinctness keeps it from packing twice.
+            PSXSpriteSheet tilesetSheet = PSXTilemapExporter.CollectTileset();
+            if (tilesetSheet != null && !_spriteSheets.Contains(tilesetSheet))
+                _spriteSheets.Add(tilesetSheet);
+            foreach (PSXSpriteSheet sheet in _spriteSheets)
+            {
+                Utils.SetTextureImporterFormat(sheet.SourceTexture, true);
+                // cutout: a sprite is a character, not a rectangle. Without this
+                // the quantizer throws the alpha away and every sprite ships
+                // inside an opaque box.
+                PSXTexture2D tex = PSXTexture2D.CreateFromTexture2D(sheet.SourceTexture, sheet.BitDepth, cutout: true);
+                tex.OriginalTexture = sheet.SourceTexture;
+                sheet.PackedTexture = tex;
+                uiTextures.Add(tex);
+            }
+
             EditorUtility.ClearProgressBar();
 
             PackTextures(uiTextures);
@@ -243,6 +279,7 @@ namespace SplashEdit.RuntimeCode
             _canvases = PSXUIExporter.CollectCanvases(selectedResolution, out _fonts);
 
             PSXPlayer player = FindObjectsByType<PSXPlayer>(FindObjectsSortMode.None).FirstOrDefault();
+            PSXNavigationSettings navSettings = FindObjectsByType<PSXNavigationSettings>(FindObjectsSortMode.None).FirstOrDefault();
             if (player != null)
             {
                 player.FindNavmesh();
@@ -254,6 +291,17 @@ namespace SplashEdit.RuntimeCode
                 _jumpHeight = player.JumpHeight;
                 _gravity = player.Gravity;
                 _playerRot = player.transform.rotation;
+            }
+            else
+            {
+                _playerPos = navSettings != null ? navSettings.SpawnPoint : Vector3.zero;
+                _playerRot = Quaternion.identity;
+                _playerHeight = navSettings != null ? navSettings.AgentHeight : 1.8f;
+                _playerRadius = navSettings != null ? navSettings.AgentRadius : 0.5f;
+                _moveSpeed = 3.0f;
+                _sprintSpeed = 8.0f;
+                _jumpHeight = 2.0f;
+                _gravity = 20.0f;
             }
 
             _bvh = new BVH(_exporters.ToList());
@@ -274,7 +322,24 @@ namespace SplashEdit.RuntimeCode
             _navRegionBuilder = new PSXNavRegionBuilder();
             _navRegionBuilder.AgentRadius = _playerRadius;
             _navRegionBuilder.AgentHeight = _playerHeight;
-            if (player != null)
+            if (navSettings != null)
+            {
+                _navRegionBuilder.AgentRadius = navSettings.AgentRadius;
+                _navRegionBuilder.AgentHeight = navSettings.AgentHeight;
+                _navRegionBuilder.MaxStepHeight = navSettings.MaxStepHeight;
+                _navRegionBuilder.WalkableSlopeAngle = navSettings.WalkableSlopeAngle;
+                _navRegionBuilder.CellSize = navSettings.NavCellSize;
+                _navRegionBuilder.CellHeight = navSettings.NavCellHeight;
+                _navRegionBuilder.MinRegionArea = navSettings.NavMinRegionArea;
+                _navRegionBuilder.MergeRegionArea = navSettings.NavMergeRegionArea;
+                _navRegionBuilder.MaxSimplifyError = navSettings.NavMaxSimplifyError;
+                _navRegionBuilder.MaxEdgeLength = navSettings.NavMaxEdgeLength;
+                _navRegionBuilder.PartitionMethod = navSettings.NavPartitionMethod;
+                _navRegionBuilder.DetailSampleDist = navSettings.NavDetailSampleDist;
+                _navRegionBuilder.DetailMaxError = navSettings.NavDetailMaxError;
+                _navRegionBuilder.MaxPlaneError = navSettings.NavMaxPlaneError;
+            }
+            else if (player != null)
             {
                 _navRegionBuilder.MaxStepHeight = player.MaxStepHeight;
                 _navRegionBuilder.WalkableSlopeAngle = player.WalkableSlopeAngle;
@@ -309,7 +374,8 @@ namespace SplashEdit.RuntimeCode
             if (walkoffZones != null && walkoffZones.Length > 0)
                 _navRegionBuilder.WalkoffZones = walkoffZones;
 
-            _navRegionBuilder.Build(_exporters, _playerPos);
+            Vector3 navSpawn = player != null ? _playerPos : (navSettings != null ? navSettings.SpawnPoint : _playerPos);
+            _navRegionBuilder.Build(_exporters, navSpawn);
             if (_navRegionBuilder.RegionCount == 0)
                 Debug.LogWarning("No nav regions! Enable 'Generate Navigation' on your floor meshes.");
 
@@ -414,7 +480,8 @@ namespace SplashEdit.RuntimeCode
                     {
                         if (AudioConvertDelegate == null)
                             throw new InvalidOperationException("AudioConvertDelegate not set. Ensure PSXAudioConverter registers it.");
-                        byte[] adpcm = AudioConvertDelegate(src.Clip, src.SampleRate, src.Loop);
+                        byte[] adpcm = AudioConvertDelegate(src.Clip, src.SampleRate, src.Loop,
+                                                            src.TrimLeadingSilence);
                         list.Add(new AudioClipExport { adpcmData = adpcm, sampleRate = src.SampleRate, loop = src.Loop, clipName = src.ClipName });
                     }
                     else
@@ -467,6 +534,7 @@ namespace SplashEdit.RuntimeCode
                 canvases = _canvases,
                 fonts = _fonts,
                 triggerBoxes = _triggerBoxes,
+                agents = _agents,
                 bakedSkinData = _bakedSkinData,
                 skinnedExporters = _skinnedExporters,
                 memCardEnabled = _psxData != null && _psxData.MemCardEnabled,
@@ -474,6 +542,12 @@ namespace SplashEdit.RuntimeCode
                 memCardProduct = _psxData != null ? _psxData.MemCardProduct : "SLUS-00000",
                 memCardTitle = _psxData != null ? _psxData.MemCardTitle : "PSXSPLASH SAVE",
                 memCardIcons = _psxData != null ? _psxData.MemCardIcons : null,
+                spriteSheets = _spriteSheets != null ? _spriteSheets.ToArray() : new PSXSpriteSheet[0],
+                sceneNetworkId = SceneNetworkId,
+                // Flattened against the FINAL sheet list (tileset already added
+                // above), so the tileset index the map stores is the one the
+                // writer emits. Null when the scene has no tilemap.
+                tilemap = PSXTilemapExporter.Flatten(_spriteSheets),
             };
 
             PSXSceneWriter.Write(path, in scene, (msg, type) =>

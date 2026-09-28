@@ -69,7 +69,7 @@ namespace SplashEdit.EditorCode
         /// </summary>
         public static async Task<bool> DownloadAndInstall(Action<string> log = null)
         {
-            // macOS: no prebuilt binary available — try to build from source
+            // macOS: no prebuilt binary available - try to build from source
             if (Application.platform == RuntimePlatform.OSXEditor)
                 return await BuildFromSourceMacOS(log);
 
@@ -123,7 +123,7 @@ namespace SplashEdit.EditorCode
                 }
                 else
                 {
-                    // tar.gz extraction — use system tar
+                    // tar.gz extraction - use system tar
                     var psi = new ProcessStartInfo
                     {
                         FileName = "tar",
@@ -175,7 +175,7 @@ namespace SplashEdit.EditorCode
             string srcDir = Path.Combine(installDir, "src");
             string buildDir = Path.Combine(srcDir, "build");
 
-            // Safety check — the UI should prevent getting here without deps,
+            // Safety check - the UI should prevent getting here without deps,
             // but guard against direct calls
             string missingDeps;
             if (!CheckMacOSBuildDeps(out missingDeps))
@@ -419,7 +419,8 @@ namespace SplashEdit.EditorCode
         /// Converts a Unity AudioClip to PS1 SPU ADPCM format using psxavenc.
         /// Returns the ADPCM byte array, or null on failure.
         /// </summary>
-        public static byte[] ConvertToADPCM(AudioClip clip, int targetSampleRate, bool loop)
+        public static byte[] ConvertToADPCM(AudioClip clip, int targetSampleRate, bool loop,
+                                            bool trimLeadingSilence = false)
         {
             if (!IsInstalled())
             {
@@ -439,7 +440,7 @@ namespace SplashEdit.EditorCode
 
             try
             {
-                ExportWav(clip, tempWav);
+                ExportWav(clip, tempWav, trimLeadingSilence);
 
                 // Run psxavenc: convert WAV to SPU ADPCM
                 // -t spu: raw SPU ADPCM output (no header, ready for DMA upload)
@@ -474,7 +475,7 @@ namespace SplashEdit.EditorCode
                     return null;
                 }
 
-                // -t spu outputs raw SPU ADPCM blocks (no header) — use directly.
+                // -t spu outputs raw SPU ADPCM blocks (no header) - use directly.
                 byte[] adpcm = File.ReadAllBytes(tempVag);
                 if (adpcm.Length == 0)
                 {
@@ -493,10 +494,106 @@ namespace SplashEdit.EditorCode
         /// <summary>
         /// Exports a Unity AudioClip to a 16-bit mono WAV file.
         /// </summary>
-        private static void ExportWav(AudioClip clip, string path)
+        /// Amplitude below which a sample counts as silence.
+        ///
+        /// About -54 dBFS: inaudible through a television, but comfortably above
+        /// the residue that dithering and lossy source formats leave behind in a
+        /// passage that looks silent in a waveform editor. A threshold of exactly
+        /// zero trims nothing at all off a real recording.
+        private const float SilenceFloor = 1f / 512f;
+
+        /// Kept either side of the audible region. The threshold necessarily cuts
+        /// partway up an attack, and starting a sample ON its transient is what
+        /// makes a trimmed effect click.
+        private const int GuardMillis = 4;
+
+        /// Strip silence from the START of a clip before it is encoded.
+        ///
+        /// OPT-IN, per clip, off by default. This rewrites the author's asset on
+        /// the way to the disc, and a lead-in somebody put there deliberately is
+        /// not the exporter's to remove - a tool that silently edits your audio
+        /// is a tool you cannot trust with the rest of it.
+        ///
+        /// What it is FOR, when you do want it: leading silence is latency. It is
+        /// dead time between the frame that asks for a sound and the frame it is
+        /// audible on, and exported clips routinely carry half a second of it or
+        /// more. Past roughly 100ms the effect stops reading as feedback and
+        /// starts reading as an echo. It is also SPU RAM: a pack measured at 55%
+        /// silence spent 206 KB of its 373 KB, out of the 511 KB the hardware has,
+        /// on nothing.
+        ///
+        /// The TAIL is never touched. On a one-shot it is inaudible either way,
+        /// and on a LOOPING clip it is the rhythm: the hardware loops back to the
+        /// start of the sample, so the trailing silence IS the interval the sound
+        /// repeats at. Cutting it would turn a measured klaxon into a flat tone.
+        private static float[] TrimLeadingSilence(float[] mono, int frequency, string name)
         {
+            if (mono == null || mono.Length == 0 || frequency <= 0) return mono;
+
+            int first = -1;
+            for (int i = 0; i < mono.Length; i++)
+            {
+                if (mono[i] > SilenceFloor || mono[i] < -SilenceFloor) { first = i; break; }
+            }
+
+            // Nothing above the floor anywhere: the clip really is silent. Leave
+            // it exactly as it is rather than handing psxavenc an empty buffer
+            // and getting back a zero-length clip that `loadClip` will refuse.
+            if (first < 0)
+            {
+                Debug.LogWarning($"[SplashEdit] '{name}' has Trim Leading Silence on but is "
+                                 + "silent all the way through; left untouched.");
+                return mono;
+            }
+
+            int guard = (frequency * GuardMillis) / 1000;
+            first -= guard;
+            if (first < 0) first = 0;
+            if (first == 0) return mono;
+
+            int len = mono.Length - first;
+            float[] trimmed = new float[len];
+            Array.Copy(mono, first, trimmed, 0, len);
+
+            Debug.Log($"[SplashEdit] '{name}': trimmed {first / (float)frequency:0.00}s "
+                      + "of leading silence.");
+            return trimmed;
+        }
+
+        private static void ExportWav(AudioClip clip, string path,
+                                      bool trimLeadingSilence = false)
+        {
+            // LOAD THE SAMPLES FIRST.
+            //
+            // `GetData` on a clip whose audio data is not loaded returns false and
+            // leaves the buffer as it found it - all zeros. It does not throw and
+            // it does not warn, so the export runs to completion and writes a
+            // perfectly well-formed ADPCM clip of pure silence.
+            //
+            // That failure is close to undiagnosable from the game: the clip has a
+            // non-zero size, it lands in SPU RAM, its name resolves, `Audio.Play`
+            // accepts it and returns a voice, and the console plays it. Everything
+            // reports success and nothing comes out of the television.
+            //
+            // Unity's default importer sets `preloadAudioData: 0`, so this is the
+            // NORMAL state of a freshly imported clip rather than a misconfigured
+            // one. Loading it here means the export does not depend on an import
+            // setting nobody would think to check.
+            bool loadedHere = false;
+            if (clip.loadState != AudioDataLoadState.Loaded)
+            {
+                loadedHere = clip.LoadAudioData();
+                if (!loadedHere)
+                    Debug.LogWarning($"PSXAudioConverter: could not load audio data for "
+                                     + $"'{clip.name}'; it will export as silence.");
+            }
+
             float[] samples = new float[clip.samples * clip.channels];
-            clip.GetData(samples, 0);
+            if (!clip.GetData(samples, 0))
+                Debug.LogWarning($"PSXAudioConverter: GetData failed for '{clip.name}'; "
+                                 + "it will export as silence.");
+
+            if (loadedHere) clip.UnloadAudioData();
 
             // Downmix to mono if stereo
             float[] mono;
@@ -515,6 +612,9 @@ namespace SplashEdit.EditorCode
             {
                 mono = samples;
             }
+
+            if (trimLeadingSilence)
+                mono = TrimLeadingSilence(mono, clip.frequency, clip.name);
 
             // Write WAV
             using (var fs = new FileStream(path, FileMode.Create))

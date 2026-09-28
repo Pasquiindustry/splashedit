@@ -184,7 +184,7 @@ namespace SplashEdit.EditorCode
             EnsureGitIgnore();
         }
 
-        // ───── Lua bytecode compilation paths ─────
+        // ----- Lua bytecode compilation paths -----
 
         /// <summary>
         /// Directory for Lua source files extracted during export.

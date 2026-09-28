@@ -10,11 +10,11 @@ namespace SplashEdit.EditorCode
     /// </summary>
     public class PSXTimelineState
     {
-        // ── Clip being edited ──
+        // -- Clip being edited --
         public ScriptableObject Clip;
         public bool IsCutscene;
 
-        // ── View state ──
+        // -- View state --
         public float PixelsPerFrame = 5f;
         public float ScrollX;
         public float ScrollY;
@@ -28,7 +28,7 @@ namespace SplashEdit.EditorCode
         public float InspectorHeight = DefaultInspectorHeight;
         public bool InspectorCollapsed;
 
-        // ── Selection ──
+        // -- Selection --
         public int SelectedTrackIndex = -1;
         public int SelectedKeyframeIndex = -1;
         /// <summary>0 = audio event, 1 = skin anim event</summary>
@@ -36,30 +36,30 @@ namespace SplashEdit.EditorCode
         public int SelectedEventIndex = -1;
         public HashSet<(int track, int kf)> MultiSelection = new HashSet<(int, int)>();
 
-        // ── Transport / Playhead ──
+        // -- Transport / Playhead --
         public float PlayheadFrame;
         public bool IsPlaying;
         public bool IsPreviewing;
         public double PlayStartEditorTime;
         public float PlayStartFrame;
 
-        // ── Drag state ──
+        // -- Drag state --
         public bool IsDraggingKeyframe;
         public bool IsDraggingPlayhead;
         public int DragOriginalFrame;
 
-        // ── Toolbar action (set by drawer, consumed by window) ──
+        // -- Toolbar action (set by drawer, consumed by window) --
         public enum ToolbarAction { None, Play, Pause, Stop, EndPreview }
         public ToolbarAction RequestedAction;
 
-        // ── Layout rects (computed each OnGUI) ──
+        // -- Layout rects (computed each OnGUI) --
         public Rect ToolbarRect;
         public Rect TrackHeaderRect;
         public Rect TimeRulerRect;
         public Rect TimelineAreaRect;
         public Rect KeyframeInspRect;
 
-        // ── Accessors that work for both clip types ──
+        // -- Accessors that work for both clip types --
 
         public int DurationFrames
         {
@@ -120,7 +120,7 @@ namespace SplashEdit.EditorCode
             }
         }
 
-        // ── Coordinate conversion ──
+        // -- Coordinate conversion --
 
         /// <summary>Convert a frame number to a pixel X offset within the timeline area.</summary>
         public float FrameToPixelX(float frame) => frame * PixelsPerFrame - ScrollX;
@@ -136,7 +136,7 @@ namespace SplashEdit.EditorCode
             return (start, end);
         }
 
-        // ── Clip setup ──
+        // -- Clip setup --
 
         /// <summary>
         /// Set the clip to edit. Caller must stop preview before calling this

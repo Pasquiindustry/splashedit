@@ -51,7 +51,7 @@ namespace SplashEdit.RuntimeCode
         [Tooltip("Voxel height (smaller = more accurate vertical resolution)")]
         [SerializeField] private float navCellHeight = 0.025f;
 
-        [Header("Navigation — Advanced")]
+        [Header("Navigation - Advanced")]
         [Tooltip("Regions smaller than this (in voxels) are removed entirely. Raise to eliminate tiny slivers.")]
         [SerializeField] private int navMinRegionArea = 8;
 
@@ -91,21 +91,21 @@ namespace SplashEdit.RuntimeCode
         [Tooltip("Downward acceleration in world units per second squared (positive value)")]
         [SerializeField] private float gravity = 20.0f;
 
-        // Public accessors — Player dimensions
+        // Public accessors - Player dimensions
         public float PlayerHeight => playerHeight;
         public float PlayerRadius => playerRadius;
 
-        // Public accessors — Movement
+        // Public accessors - Movement
         public float MoveSpeed => moveSpeed;
         public float SprintSpeed => sprintSpeed;
 
-        // Public accessors — Navigation core
+        // Public accessors - Navigation core
         public float MaxStepHeight => maxStepHeight;
         public float WalkableSlopeAngle => walkableSlopeAngle;
         public float NavCellSize => navCellSize;
         public float NavCellHeight => navCellHeight;
 
-        // Public accessors — Navigation advanced
+        // Public accessors - Navigation advanced
         public int NavMinRegionArea => navMinRegionArea;
         public int NavMergeRegionArea => navMergeRegionArea;
         public float NavMaxSimplifyError => navMaxSimplifyError;
@@ -115,7 +115,7 @@ namespace SplashEdit.RuntimeCode
         public float NavDetailMaxError => navDetailMaxError;
         public float NavMaxPlaneError => navMaxPlaneError;
 
-        // Public accessors — Physics
+        // Public accessors - Physics
         public float JumpHeight => jumpHeight;
         public float Gravity => gravity;
         public Vector3 CamPoint { get; protected set; }

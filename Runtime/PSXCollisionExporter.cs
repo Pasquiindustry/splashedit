@@ -7,7 +7,7 @@ using UnityEngine;
 namespace SplashEdit.RuntimeCode
 {
     /// <summary>
-    /// Surface flags for collision triangles — must match C++ SurfaceFlag enum
+    /// Surface flags for collision triangles - must match C++ SurfaceFlag enum
     /// </summary>
     [Flags]
     public enum PSXSurfaceFlag : byte

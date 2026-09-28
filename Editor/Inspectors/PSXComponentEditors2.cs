@@ -32,6 +32,8 @@ namespace SplashEdit.EditorCode
 
             if (audioClip.Loop)
                 PSXEditorStyles.DrawStatusBadge("Loop", PSXEditorStyles.AccentCyan, 50);
+            if (audioClip.TrimLeadingSilence)
+                PSXEditorStyles.DrawStatusBadge("Trimmed", PSXEditorStyles.Warning, 70);
             EditorGUILayout.EndHorizontal();
 
             PSXEditorStyles.EndCard();
@@ -53,6 +55,16 @@ namespace SplashEdit.EditorCode
                 "Whether this clip should loop when played."));
             EditorGUILayout.PropertyField(serializedObject.FindProperty("DefaultVolume"), new GUIContent("Volume",
                 "Default playback volume (0-127)."));
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("TrimLeadingSilence"),
+                new GUIContent("Trim Leading Silence",
+                "Cut silence off the START of the clip at export.\n\n" +
+                "Off by default: this rewrites your asset on the way to the disc, " +
+                "and a lead-in you put there on purpose is not the exporter's to remove.\n\n" +
+                "Turn it on for a clip whose file begins with dead air. That silence " +
+                "is latency between the frame that asks for the sound and the frame " +
+                "you hear it, and it costs SPU RAM for the whole round.\n\n" +
+                "The tail is always kept - on a looping clip it is the interval the " +
+                "sound repeats at."));
 
             PSXEditorStyles.EndCard();
 
@@ -112,9 +124,9 @@ namespace SplashEdit.EditorCode
             serializedObject.Update();
             PSXPlayer player = (PSXPlayer)target;
 
-            // ────────────────────────────────────────────────────────
+            // --------------------------------------------------------
             // Header
-            // ────────────────────────────────────────────────────────
+            // --------------------------------------------------------
             PSXEditorStyles.BeginCard();
             EditorGUILayout.LabelField("PSX Player", PSXEditorStyles.CardHeaderStyle);
             EditorGUILayout.LabelField("First-person player controller for PS1", PSXEditorStyles.RichLabel);
@@ -122,9 +134,9 @@ namespace SplashEdit.EditorCode
 
             EditorGUILayout.Space(4);
 
-            // ────────────────────────────────────────────────────────
+            // --------------------------------------------------------
             // Player Dimensions
-            // ────────────────────────────────────────────────────────
+            // --------------------------------------------------------
             _dimensionsFoldout = PSXEditorStyles.DrawFoldoutCard("Player Dimensions", _dimensionsFoldout, () =>
             {
                 EditorGUILayout.PropertyField(serializedObject.FindProperty("playerHeight"), new GUIContent("Height",
@@ -135,9 +147,9 @@ namespace SplashEdit.EditorCode
 
             EditorGUILayout.Space(2);
 
-            // ────────────────────────────────────────────────────────
+            // --------------------------------------------------------
             // Movement
-            // ────────────────────────────────────────────────────────
+            // --------------------------------------------------------
             _movementFoldout = PSXEditorStyles.DrawFoldoutCard("Movement", _movementFoldout, () =>
             {
                 EditorGUILayout.PropertyField(serializedObject.FindProperty("moveSpeed"), new GUIContent("Walk Speed",
@@ -148,9 +160,9 @@ namespace SplashEdit.EditorCode
 
             EditorGUILayout.Space(2);
 
-            // ────────────────────────────────────────────────────────
+            // --------------------------------------------------------
             // Navigation (fully merged from PSXNavRegionEditor)
-            // ────────────────────────────────────────────────────────
+            // --------------------------------------------------------
             _navigationFoldout = PSXEditorStyles.DrawFoldoutCard("Navigation", _navigationFoldout, () =>
             {
                 EditorGUILayout.LabelField(
@@ -167,7 +179,7 @@ namespace SplashEdit.EditorCode
 
                 EditorGUILayout.Space(6);
 
-                // ── Agent settings ──
+                // -- Agent settings --
                 EditorGUILayout.LabelField("Agent", EditorStyles.boldLabel);
                 EditorGUILayout.PropertyField(serializedObject.FindProperty("maxStepHeight"), new GUIContent("Max Step Height",
                     "Maximum vertical step the agent can climb. If your stairs are taller than this, the navmesh won't connect across them."));
@@ -176,7 +188,7 @@ namespace SplashEdit.EditorCode
 
                 PSXEditorStyles.DrawSeparator(4, 4);
 
-                // ── Voxelization ──
+                // -- Voxelization --
                 EditorGUILayout.LabelField("Voxelization", EditorStyles.boldLabel);
                 EditorGUILayout.LabelField(
                     "<color=#888888>Controls the 3D grid resolution used to analyze your geometry. " +
@@ -208,7 +220,7 @@ namespace SplashEdit.EditorCode
 
                 PSXEditorStyles.DrawSeparator(4, 4);
 
-                // ── Region Partitioning ──
+                // -- Region Partitioning --
                 EditorGUILayout.LabelField("Region Partitioning", EditorStyles.boldLabel);
                 EditorGUILayout.LabelField(
                     "<color=#888888>Controls how walkable voxels are grouped into convex regions. " +
@@ -234,7 +246,7 @@ namespace SplashEdit.EditorCode
 
                 PSXEditorStyles.DrawSeparator(4, 4);
 
-                // ── Contour & Edge ──
+                // -- Contour & Edge --
                 EditorGUILayout.LabelField("Contour & Edge", EditorStyles.boldLabel);
                 EditorGUILayout.PropertyField(serializedObject.FindProperty("navMaxSimplifyError"), new GUIContent("Max Simplify Error",
                     "Maximum distance (world units) that polygon edges can deviate from the voxelized boundary during contour simplification. " +
@@ -245,18 +257,18 @@ namespace SplashEdit.EditorCode
                     "Longer edges reduce region count.\n\n" +
                     "For terrain: 4\u20136. For indoors: 8\u201316."));
 
-                // ── Advanced detail settings ──
+                // -- Advanced detail settings --
                 DrawAdvancedNavSection(player);
 
-                // ── Presets ──
+                // -- Presets --
                 DrawPresetsSection(player);
             });
 
             EditorGUILayout.Space(2);
 
-            // ────────────────────────────────────────────────────────
+            // --------------------------------------------------------
             // Jump & Gravity
-            // ────────────────────────────────────────────────────────
+            // --------------------------------------------------------
             _physicsFoldout = PSXEditorStyles.DrawFoldoutCard("Jump & Gravity", _physicsFoldout, () =>
             {
                 EditorGUILayout.PropertyField(serializedObject.FindProperty("jumpHeight"), new GUIContent("Jump Height",
@@ -269,9 +281,9 @@ namespace SplashEdit.EditorCode
 
             EditorGUILayout.Space(4);
 
-            // ────────────────────────────────────────────────────────
+            // --------------------------------------------------------
             // Nav Region Preview (build, visualize, stats, validation)
-            // ────────────────────────────────────────────────────────
+            // --------------------------------------------------------
             DrawNavPreviewSection(player);
         }
 

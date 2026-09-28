@@ -50,6 +50,7 @@ namespace SplashEdit.RuntimeCode
 
             // Trigger boxes (v16)
             public PSXTriggerBox[] triggerBoxes;
+            public PSXAgent[] agents;
 
             // Skinned mesh data (v18)
             public PSXSkinnedMeshExporter.BakedSkinData[] bakedSkinData;
@@ -77,9 +78,21 @@ namespace SplashEdit.RuntimeCode
             public string memCardProduct;    // up to 10 chars, e.g. "SLUS-00000"
             public string memCardTitle;      // ASCII title shown in the BIOS
             public Texture2D[] memCardIcons; // 1..3 frames, each exactly 16x16
+
+            // Sprites (v22)
+            public PSXSpriteSheet[] spriteSheets;
+
+            // Authored network scene id (v22). Hashed into the pack; consoles
+            // must agree on it to share a room. Empty means "not authored" and
+            // the runtime falls back to its derived hash.
+            public string sceneNetworkId;
+
+            // Tilemap (v23). Null when the scene has no tilemap, which writes the
+            // header offset as 0 - exactly what a v22 pack left there.
+            public PSXTilemapData tilemap;
         }
 
-        // ─── Offset bookkeeping ───
+        // --- Offset bookkeeping ---
 
         private sealed class OffsetData
         {
@@ -87,15 +100,35 @@ namespace SplashEdit.RuntimeCode
             public readonly List<long> DataOffsets = new List<long>();
         }
 
-        // ═══════════════════════════════════════════════════════════════
+        /// <summary>
+        /// Write a null-terminated name at the current position and backfill the
+        /// placeholder that should point at it. Names are capped at 24 chars to
+        /// match every other name in the format.
+        /// </summary>
+        private static void WriteNameAndBackfill(BinaryWriter writer, string name, long placeholderPos)
+        {
+            string s = name ?? "";
+            if (s.Length > 24) s = s.Substring(0, 24);
+
+            long namePos = writer.BaseStream.Position;
+            writer.Write(Encoding.UTF8.GetBytes(s));
+            writer.Write((byte)0);
+
+            long curPos = writer.BaseStream.Position;
+            writer.Seek((int)placeholderPos, SeekOrigin.Begin);
+            writer.Write((uint)namePos);
+            writer.Seek((int)curPos, SeekOrigin.Begin);
+        }
+
+        // ---------------------------------------------------------------
         // Public API
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
 
         /// <summary>
         /// Serialize the scene to splashpack v20 format: three separate files.
-        /// - path                  → .splashpack (live data only)
-        /// - path.Replace(…).vram  → VRAM bulk data (atlas pixels + CLUTs + font pixels)
-        /// - path.Replace(…).spu   → SPU bulk data (audio ADPCM)
+        /// - path                  -> .splashpack (live data only)
+        /// - path.Replace(...).vram  -> VRAM bulk data (atlas pixels + CLUTs + font pixels)
+        /// - path.Replace(...).spu   -> SPU bulk data (audio ADPCM)
         /// </summary>
         /// <param name="path">Absolute file path to write (splashpack).</param>
         /// <param name="scene">Pre-built scene data.</param>
@@ -160,12 +193,22 @@ namespace SplashEdit.RuntimeCode
                 for (int i = 0; i < scene.exporters.Length; i++)
                     exporterIndex[scene.exporters[i]] = i;
 
-                // ──────────────────────────────────────────────────────
-                // Header (128 bytes — splashpack v21)
-                // ──────────────────────────────────────────────────────
+                // Flatten sprite sheets up front: the header needs their counts,
+                // and by now VRAM packing has given every sheet real coordinates.
+                List<PSXSpriteSheetData> spriteSheetData = new List<PSXSpriteSheetData>();
+                List<PSXSpriteAnimData> spriteAnimData = new List<PSXSpriteAnimData>();
+                if (scene.spriteSheets != null && scene.spriteSheets.Length > 0)
+                {
+                    PSXSpriteExporter.Flatten(new List<PSXSpriteSheet>(scene.spriteSheets),
+                                              out spriteSheetData, out spriteAnimData);
+                }
+
+                // ------------------------------------------------------
+                // Header (144 bytes - splashpack v23)
+                // ------------------------------------------------------
                 writer.Write('S');
                 writer.Write('P');
-                writer.Write((ushort)21);
+                writer.Write((ushort)23);
                 writer.Write((ushort)luaFiles.Count);
                 writer.Write((ushort)scene.exporters.Length);
                 writer.Write((ushort)scene.atlases.Length);
@@ -289,7 +332,7 @@ namespace SplashEdit.RuntimeCode
                 // Skinned mesh header fields (v18)
                 int skinnedMeshCount = scene.bakedSkinData?.Length ?? 0;
                 writer.Write((ushort)skinnedMeshCount);
-                writer.Write((ushort)0); // pad_skin
+                writer.Write((ushort)(scene.agents?.Length ?? 0));
                 long skinTableOffsetPos = writer.BaseStream.Position;
                 writer.Write((uint)0); // skinTableOffset placeholder
 
@@ -299,9 +342,24 @@ namespace SplashEdit.RuntimeCode
                 writer.Write((uint)0); // memcardTableOffset placeholder
                 writer.Write((uint)0); // reservedMemcard
 
-                // ──────────────────────────────────────────────────────
+                // Sprite + scene-id header fields (v22). These 16 bytes grow the
+                // header from 128 to 144; everything above is unchanged, which is
+                // what lets the runtime still parse v20/v21 packs.
+                long spriteTableOffsetPos = writer.BaseStream.Position;
+                writer.Write((uint)0);                          // spriteTableOffset placeholder
+                writer.Write((ushort)spriteSheetData.Count);    // spriteSheetCount
+                writer.Write((ushort)spriteAnimData.Count);     // spriteAnimCount
+                // Authored network scene id. 0 tells the runtime to fall back to
+                // the derived hash, which is what an unset field should mean.
+                writer.Write(PSXSpriteExporter.HashSceneId(scene.sceneNetworkId));
+                // v23: this word was reservedV22; it is now the tilemap offset,
+                // backfilled after the tilemap chunk is written (0 if no tilemap).
+                long tilemapTableOffsetPos = writer.BaseStream.Position;
+                writer.Write((uint)0);                          // tilemapTableOffset placeholder
+
+                // ------------------------------------------------------
                 // Lua file metadata
-                // ──────────────────────────────────────────────────────
+                // ------------------------------------------------------
                 foreach (LuaFile luaFile in luaFiles)
                 {
                     luaOffset.PlaceholderPositions.Add(writer.BaseStream.Position);
@@ -314,9 +372,9 @@ namespace SplashEdit.RuntimeCode
                         writer.Write((uint)Encoding.UTF8.GetByteCount(luaFile.LuaScript));
                 }
 
-                // ──────────────────────────────────────────────────────
+                // ------------------------------------------------------
                 // GameObject section
-                // ──────────────────────────────────────────────────────
+                // ------------------------------------------------------
                 // Build a set of proxy PSXObjectExporters that represent skinned meshes
                 HashSet<PSXObjectExporter> skinnedProxySet = new HashSet<PSXObjectExporter>();
                 if (scene.skinnedExporters != null)
@@ -340,7 +398,7 @@ namespace SplashEdit.RuntimeCode
                     meshOffset.PlaceholderPositions.Add(writer.BaseStream.Position);
                     writer.Write((int)0); // placeholder
 
-                    // Transform — position as 20.12 fixed-point
+                    // Transform - position as 20.12 fixed-point
                     Vector3 pos = exporter.transform.localToWorldMatrix.GetPosition();
                     writer.Write(PSXTrig.ConvertWorldToFixed12(pos.x / gte));
                     writer.Write(PSXTrig.ConvertWorldToFixed12(-pos.y / gte));
@@ -373,9 +431,9 @@ namespace SplashEdit.RuntimeCode
                     WriteObjectAABB(writer, exporter, gte);
                 }
 
-                // ──────────────────────────────────────────────────────
-                // Collider metadata (32 bytes each) — Dynamic objects only
-                // ──────────────────────────────────────────────────────
+                // ------------------------------------------------------
+                // Collider metadata (32 bytes each) - Dynamic objects only
+                // ------------------------------------------------------
                 for (int exporterIdx = 0; exporterIdx < scene.exporters.Length; exporterIdx++)
                 {
                     PSXObjectExporter exporter = scene.exporters[exporterIdx];
@@ -393,9 +451,9 @@ namespace SplashEdit.RuntimeCode
                     writer.Write((uint)0);
                 }
 
-                // ──────────────────────────────────────────────────────
+                // ------------------------------------------------------
                 // Trigger box metadata (32 bytes each)
-                // ──────────────────────────────────────────────────────
+                // ------------------------------------------------------
                 if (scene.triggerBoxes != null)
                 {
                     foreach (var tb in scene.triggerBoxes)
@@ -420,15 +478,15 @@ namespace SplashEdit.RuntimeCode
                     }
                 }
 
-                // ──────────────────────────────────────────────────────
+                // ------------------------------------------------------
                 // BVH data (inline)
-                // ──────────────────────────────────────────────────────
+                // ------------------------------------------------------
                 AlignToFourBytes(writer);
                 scene.bvh.WriteToBinary(writer, gte);
 
-                // ──────────────────────────────────────────────────────
+                // ------------------------------------------------------
                 // Interactable components (28 bytes each)
-                // ──────────────────────────────────────────────────────
+                // ------------------------------------------------------
                 AlignToFourBytes(writer);
                 foreach (PSXInteractable interactable in scene.interactables)
                 {
@@ -458,20 +516,106 @@ namespace SplashEdit.RuntimeCode
                     writer.Write(nameBytes);
                 }
 
-                // ──────────────────────────────────────────────────────
+                // ------------------------------------------------------
+                // Agent components - SPLASHPACKAgentV2 (28 bytes each)
+                // ------------------------------------------------------
+                if (scene.agents != null)
+                {
+                    // Pass 1 - write the fixed 28-byte structs
+                    foreach (PSXAgent agent in scene.agents)
+                    {
+                        var exp = agent != null ? agent.GetComponent<PSXObjectExporter>() : null;
+                        int goIndex = (exp != null && exporterIndex.TryGetValue(exp, out int idx)) ? idx : 0xFFFF;
+
+                        int waypointCount = 0;
+                        byte flags = 0;
+                        if (agent != null)
+                        {
+                            if (agent.StartEnabled)                                      flags |= 0x01;
+                            if (agent.HasVision && agent.VisionRange > 0f)               flags |= 0x02;
+                            if (agent.HasHearing && agent.HearingRange > 0f)             flags |= 0x04;
+                            waypointCount = Mathf.Min(agent.PatrolWaypoints?.Count ?? 0, 8);
+                            if (waypointCount > 0)                                       flags |= 0x08;
+                        }
+
+                        // Resolve per-state clip indices (0xFF = none)
+                        byte[] clipIndices = new byte[8];
+                        for (int s = 0; s < 8; s++) clipIndices[s] = 0xFF;
+                        if (agent != null && agent.StateAnims != null && scene.animations != null)
+                        {
+                            for (int s = 0; s < 8 && s < agent.StateAnims.Length; s++)
+                            {
+                                var clip = agent.StateAnims[s].clip;
+                                if (clip == null) continue;
+                                for (int c = 0; c < scene.animations.Length; c++)
+                                {
+                                    if (scene.animations[c] == clip)
+                                    {
+                                        clipIndices[s] = (byte)(c < 255 ? c : 0xFE);
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+
+                        float movePerFrame  = agent != null ? agent.MoveSpeed   / 30f / gte : 0f;
+                        float stopDistNorm  = agent != null ? agent.StopDistance / gte       : 0f;
+                        float visionNorm    = agent != null ? agent.VisionRange  / gte       : 0f;
+                        float hearingNorm   = agent != null ? agent.HearingRange / gte       : 0f;
+                        short cosAngle      = agent != null ? agent.VisionCosAngleFp12       : (short)0;
+                        ushort alertFrames  = (ushort)(agent != null ? Mathf.Min(agent.AlertTimeoutFrames, 65535) : 0);
+                        byte regionDepth    = (byte)(agent != null ? Mathf.Min(agent.VisionRegionDepth, 8) : 0);
+
+                        // --- struct fields (28 bytes total) ---
+                        writer.Write((ushort)goIndex);                                                                    // +0
+                        writer.Write(flags);                                                                              // +2
+                        writer.Write((byte)waypointCount);                                                                // +3
+                        writer.Write((ushort)Mathf.Clamp(Mathf.RoundToInt(movePerFrame * 4096f),  0, 65535));            // +4
+                        writer.Write((ushort)Mathf.Clamp(Mathf.RoundToInt(stopDistNorm * 4096f),  0, 65535));            // +6
+                        writer.Write((ushort)Mathf.Clamp(Mathf.RoundToInt(visionNorm   * 4096f),  0, 65535));            // +8
+                        writer.Write(cosAngle);                                                                           // +10
+                        writer.Write((ushort)Mathf.Clamp(Mathf.RoundToInt(hearingNorm  * 4096f),  0, 65535));            // +12
+                        writer.Write(alertFrames);                                                                        // +14
+                        writer.Write(clipIndices[0]); writer.Write(clipIndices[1]);                                       // +16
+                        writer.Write(clipIndices[2]); writer.Write(clipIndices[3]);                                       // +18
+                        writer.Write(clipIndices[4]); writer.Write(clipIndices[5]);                                       // +20
+                        writer.Write(clipIndices[6]); writer.Write(clipIndices[7]);                                       // +22
+                        writer.Write(regionDepth);                                                                        // +24
+                        writer.Write((byte)0); writer.Write((byte)0); writer.Write((byte)0);                              // +25 reserved
+                        // total = 28
+                    }
+
+                    // Pass 2 - write waypoint payload for all agents (packed int32 XYZ fp12)
+                    foreach (PSXAgent agent in scene.agents)
+                    {
+                        if (agent == null) continue;
+                        var wps = agent.PatrolWaypoints;
+                        if (wps == null) continue;
+                        int count = Mathf.Min(wps.Count, 8);
+                        for (int w = 0; w < count; w++)
+                        {
+                            Vector3 worldPos = wps[w];
+                            writer.Write((int)Mathf.RoundToInt(worldPos.x / gte * 4096f));
+                            writer.Write((int)Mathf.RoundToInt(worldPos.y / gte * 4096f));
+                            writer.Write((int)Mathf.RoundToInt(worldPos.z / gte * 4096f));
+                        }
+                    }
+                }
+
+                // ------------------------------------------------------
                 // Nav region data (version 7+)
-                // ──────────────────────────────────────────────────────
+                // ------------------------------------------------------
                 if (scene.navRegionBuilder.RegionCount > 0)
                 {
                     AlignToFourBytes(writer);
                     scene.navRegionBuilder.WriteToBinary(writer, gte);
                 }
 
-                // ──────────────────────────────────────────────────────
+                // ------------------------------------------------------
                 // Room/portal data (version 11, interior scenes)
                 // Must be in the sequential cursor section (after nav regions,
                 // before atlas metadata) so the C++ reader can find it.
-                // ──────────────────────────────────────────────────────
+                // ------------------------------------------------------
                 if (scene.roomBuilder != null && scene.roomBuilder.RoomCount > 0)
                 {
                     AlignToFourBytes(writer);
@@ -479,9 +623,9 @@ namespace SplashEdit.RuntimeCode
                     log?.Invoke($"Room/portal data: {scene.roomBuilder.RoomCount} rooms, {scene.roomBuilder.PortalCount} portals, {scene.roomBuilder.TotalTriRefCount} tri-refs.", LogType.Log);
                 }
 
-                // ──────────────────────────────────────────────────────
+                // ------------------------------------------------------
                 // Atlas metadata
-                // ──────────────────────────────────────────────────────
+                // ------------------------------------------------------
                 foreach (TextureAtlas atlas in scene.atlases)
                 {
                     atlasOffset.PlaceholderPositions.Add(writer.BaseStream.Position);
@@ -492,9 +636,9 @@ namespace SplashEdit.RuntimeCode
                     writer.Write((ushort)atlas.PositionY);
                 }
 
-                // ──────────────────────────────────────────────────────
+                // ------------------------------------------------------
                 // CLUT metadata
-                // ──────────────────────────────────────────────────────
+                // ------------------------------------------------------
                 foreach (TextureAtlas atlas in scene.atlases)
                 {
                     foreach (var texture in atlas.ContainedTextures)
@@ -511,9 +655,9 @@ namespace SplashEdit.RuntimeCode
                     }
                 }
 
-                // ══════════════════════════════════════════════════════
+                // ------------------------------------------------------
                 // Data sections
-                // ══════════════════════════════════════════════════════
+                // ------------------------------------------------------
 
                 // Lua data (bytecode if compiled, source text otherwise)
                 int luaIdx = 0;
@@ -546,7 +690,7 @@ namespace SplashEdit.RuntimeCode
 
                     foreach (Tri tri in exporter.Mesh.Triangles)
                     {
-                        // Vertex positions (3 × 6 bytes)
+                        // Vertex positions (3 x 6 bytes)
                         WriteVertexPosition(writer, tri.v0);
                         WriteVertexPosition(writer, tri.v1);
                         WriteVertexPosition(writer, tri.v2);
@@ -554,7 +698,7 @@ namespace SplashEdit.RuntimeCode
                         // Normal for v0 only
                         WriteVertexNormals(writer, tri.v0);
 
-                        // Vertex colors (3 × 4 bytes)
+                        // Vertex colors (3 x 4 bytes)
                         WriteVertexColor(writer, tri.v0);
                         WriteVertexColor(writer, tri.v1);
                         WriteVertexColor(writer, tri.v2);
@@ -603,9 +747,9 @@ namespace SplashEdit.RuntimeCode
                     }
                 }
 
-                // ──────────────────────────────────────────────────────
+                // ------------------------------------------------------
                 // Object name table (version 9)
-                // ──────────────────────────────────────────────────────
+                // ------------------------------------------------------
                 AlignToFourBytes(writer);
                 long nameTableStart = writer.BaseStream.Position;
                 foreach (PSXObjectExporter exporter in scene.exporters)
@@ -626,12 +770,12 @@ namespace SplashEdit.RuntimeCode
                     writer.Seek((int)endPos, SeekOrigin.Begin);
                 }
 
-                // ──────────────────────────────────────────────────────
+                // ------------------------------------------------------
                 // Audio clip data (version 10)
                 // Metadata entries are 16 bytes each, written contiguously.
                 // Name strings follow the metadata block with backfilled offsets.
                 // ADPCM blobs deferred to dead zone.
-                // ──────────────────────────────────────────────────────
+                // ------------------------------------------------------
                 List<long> audioDataOffsetPositions = new List<long>();
                 if (audioClipCount > 0 && scene.audioClips != null)
                 {
@@ -683,9 +827,9 @@ namespace SplashEdit.RuntimeCode
                     }
                 }
 
-                // ──────────────────────────────────────────────────────
+                // ------------------------------------------------------
                 // Cutscene data (version 12)
-                // ──────────────────────────────────────────────────────
+                // ------------------------------------------------------
                 if (cutsceneCount > 0)
                 {
                     PSXCutsceneExporter.ExportCutscenes(
@@ -708,9 +852,9 @@ namespace SplashEdit.RuntimeCode
                     }
                 }
 
-                // ──────────────────────────────────────────────────────
+                // ------------------------------------------------------
                 // Animation data (version 17)
-                // ──────────────────────────────────────────────────────
+                // ------------------------------------------------------
                 if (animationCount > 0)
                 {
                     PSXAnimationExporter.ExportAnimations(
@@ -731,7 +875,7 @@ namespace SplashEdit.RuntimeCode
                     }
                 }
 
-                // ──────────────────────────────────────────────────────
+                // ------------------------------------------------------
                 // Skinned mesh data (version 18)
                 // Table: 12 bytes per entry (dataOffset, nameLen+pad, nameOffset)
                 // Per-mesh: gameObjectIndex(u16), boneCount(u8), clipCount(u8),
@@ -739,7 +883,7 @@ namespace SplashEdit.RuntimeCode
                 //           per-clip: nameLen(u8), name, 0x00, flags(u8),
                 //                     frameCount(u8), fps(u8), align2,
                 //                     BakedBoneMatrix[frameCount*boneCount]
-                // ──────────────────────────────────────────────────────
+                // ------------------------------------------------------
                 if (skinnedMeshCount > 0 && scene.bakedSkinData != null)
                 {
                     PSXSkinnedMeshExporter.ExportSkinData(
@@ -758,21 +902,21 @@ namespace SplashEdit.RuntimeCode
                     }
                 }
 
-                // ──────────────────────────────────────────────────────
+                // ------------------------------------------------------
                 // UI canvas + font data (version 13)
                 // Font descriptors: 112 bytes each (before canvas data)
                 // Canvas descriptor table: 12 bytes per canvas
                 // Element records: 48 bytes each
                 // Name and text strings follow with offset backfill
                 // Font pixel data is deferred to the dead zone.
-                // ──────────────────────────────────────────────────────
+                // ------------------------------------------------------
                 List<long> fontDataOffsetPositions = new List<long>();
                 if ((uiCanvasCount > 0 && scene.canvases != null) || uiFontCount > 0)
                 {
                     AlignToFourBytes(writer);
                     long uiTableStart = writer.BaseStream.Position;
 
-                    // ── Font descriptors (112 bytes each) ──
+                    // -- Font descriptors (112 bytes each) --
                     // Layout: glyphW(1) glyphH(1) vramX(2) vramY(2) textureH(2)
                     //         dataOffset(4) dataSize(4)
                     if (scene.fonts != null)
@@ -799,14 +943,14 @@ namespace SplashEdit.RuntimeCode
                     // The C++ loader reads font pixel data via the dataOffset, uploads to VRAM,
                     // then never accesses it again.
 
-                    // ── Canvas descriptor table (12 bytes each) ──
+                    // -- Canvas descriptor table (12 bytes each) --
                     // Layout per descriptor:
-                    //   uint32  dataOffset     — offset to this canvas's element array
+                    //   uint32  dataOffset     - offset to this canvas's element array
                     //   uint8   nameLen
                     //   uint8   sortOrder
                     //   uint8   elementCount
-                    //   uint8   flags          — bit 0 = startVisible
-                    //   uint32  nameOffset     — offset to null-terminated name string
+                    //   uint8   flags          - bit 0 = startVisible
+                    //   uint32  nameOffset     - offset to null-terminated name string
                     List<long> canvasDataOffsetPos = new List<long>();
                     List<long> canvasNameOffsetPos = new List<long>();
                     for (int ci = 0; ci < uiCanvasCount; ci++)
@@ -883,7 +1027,17 @@ namespace SplashEdit.RuntimeCode
                                     writer.Write(el.U1);             // [8]
                                     writer.Write(el.V1);             // [9]
                                     writer.Write(el.BitDepthIndex);  // [10]
-                                    writer.Write(new byte[5]);       // [11-15] padding
+                                    // [11-15] the sheet's cell grid, for images
+                                    // authored as a PSXUISprite. All zero for a
+                                    // plain PSXUIImage, which uisystem.cpp reads
+                                    // as "not sheet-backed" - so these five bytes
+                                    // were the record's padding and the format
+                                    // did not have to grow to gain UI.SetFrame.
+                                    writer.Write(el.CellW);          // [11]
+                                    writer.Write(el.CellH);          // [12]
+                                    writer.Write(el.SheetCols);      // [13]
+                                    writer.Write(el.BaseU);          // [14]
+                                    writer.Write(el.BaseV);          // [15]
                                     break;
                                 case PSXUIElementType.Progress:
                                     writer.Write(el.BgR);            // [0]
@@ -983,10 +1137,146 @@ namespace SplashEdit.RuntimeCode
                     log?.Invoke($"{uiCanvasCount} UI canvases ({totalElements} elements) written.", LogType.Log);
                 }
 
-                // ══════════════════════════════════════════════════════
-                // NO MORE DEAD ZONE — pixel/audio data goes into separate files.
+                // ------------------------------------------------------
+                // Sprite sheet + animation tables (v22)
+                // ------------------------------------------------------
+                // Layout must match spritesystem.cpp's SPLASHPACKSpriteSheet (20 B)
+                // and SPLASHPACKSpriteAnim (12 B), which static_assert their sizes.
+                // The sheets' PIXELS are not here - they were packed into the VRAM
+                // atlas with the UI and 3D textures, so these records are only
+                // coordinates into it.
+                if (spriteSheetData.Count > 0)
+                {
+                    // The engine reads the 20-byte sheet / 12-byte anim records as
+                    // packed structs whose first field is a uint32 (nameOffset), so
+                    // the table MUST start 4-byte aligned - an unaligned `lw` is a
+                    // hardware LoadAddressError, not a silent misread. The offset is
+                    // otherwise whatever the preceding variable-length data (name
+                    // strings, etc.) leaves it at, which is even only by luck: a
+                    // scene that grew from 0x7B14 to 0xBFF5 crashed exactly here.
+                    // Record sizes are multiples of 4, so aligning the start aligns
+                    // every record; the trailing name strings are read byte-wise.
+                    AlignToFourBytes(writer);
+                    long spriteTableStart = writer.BaseStream.Position;
+                    List<long> sheetNameOffsetPos = new List<long>();
+                    List<long> animNameOffsetPos = new List<long>();
+
+                    foreach (var s in spriteSheetData)
+                    {
+                        sheetNameOffsetPos.Add(writer.BaseStream.Position);
+                        writer.Write((uint)0);      // nameOffset placeholder
+                        writer.Write(s.TexpageX);
+                        writer.Write(s.TexpageY);
+                        writer.Write(s.U0);
+                        writer.Write(s.V0);
+                        writer.Write(s.ClutX);
+                        writer.Write(s.ClutY);
+                        writer.Write(s.CellW);
+                        writer.Write(s.CellH);
+                        writer.Write(s.Cols);
+                        writer.Write(s.Rows);
+                        writer.Write(s.BitDepthIndex);
+                        writer.Write((byte)0);      // pad0
+                        writer.Write((ushort)0);    // pad1
+                    }
+
+                    foreach (var a in spriteAnimData)
+                    {
+                        animNameOffsetPos.Add(writer.BaseStream.Position);
+                        writer.Write((uint)0);      // nameOffset placeholder
+                        writer.Write(a.Sheet);
+                        writer.Write(a.FirstFrame);
+                        writer.Write(a.FrameCount);
+                        writer.Write(a.FrameDuration);
+                        writer.Write((byte)(a.Loop ? 1 : 0));
+                        writer.Write((byte)0);      // pad0
+                        writer.Write((ushort)0);    // pad1
+                    }
+
+                    // Name strings, then backfill every offset that points at one.
+                    for (int i = 0; i < spriteSheetData.Count; i++)
+                        WriteNameAndBackfill(writer, spriteSheetData[i].Name, sheetNameOffsetPos[i]);
+                    for (int i = 0; i < spriteAnimData.Count; i++)
+                        WriteNameAndBackfill(writer, spriteAnimData[i].Name, animNameOffsetPos[i]);
+
+                    {
+                        long curPos = writer.BaseStream.Position;
+                        writer.Seek((int)spriteTableOffsetPos, SeekOrigin.Begin);
+                        writer.Write((uint)spriteTableStart);
+                        writer.Seek((int)curPos, SeekOrigin.Begin);
+                    }
+
+                    log?.Invoke($"{spriteSheetData.Count} sprite sheets " +
+                                $"({spriteAnimData.Count} animations) written.", LogType.Log);
+                }
+
+                // ------------------------------------------------------
+                // Tilemap (v23)
+                // ------------------------------------------------------
+                // Layout must match tilesystem.cpp's SPLASHPACKTilemap (20 B),
+                // TileCell (2 B) and TileObject (6 B), which static_assert their
+                // sizes. The header's first field is a uint16, and the object
+                // records read uint16 coords with `lh`, so the whole chunk must
+                // start 4-byte aligned - the same LoadAddressError trap the sprite
+                // table has. Cells and objects are read straight from here, so the
+                // order below IS the runtime's memory layout.
+                if (scene.tilemap != null)
+                {
+                    PSXTilemapData tm = scene.tilemap;
+                    AlignToFourBytes(writer);
+                    long tilemapStart = writer.BaseStream.Position;
+
+                    long cellsOffsetPos, objectsOffsetPos;
+
+                    // SPLASHPACKTilemap header (20 bytes).
+                    writer.Write(tm.Width);
+                    writer.Write(tm.Height);
+                    writer.Write(tm.TileW);
+                    writer.Write(tm.TileH);
+                    writer.Write(tm.TilesetSheet);
+                    writer.Write((byte)0);                 // pad0
+                    writer.Write((ushort)tm.Objects.Count);
+                    writer.Write((ushort)0);               // pad1
+                    cellsOffsetPos = writer.BaseStream.Position;
+                    writer.Write((uint)0);                 // cellsOffset placeholder
+                    objectsOffsetPos = writer.BaseStream.Position;
+                    writer.Write((uint)0);                 // objectsOffset placeholder
+
+                    // Cells: 2 bytes each (tile, flags), row-major. Byte-addressed,
+                    // so no alignment needed, but the header above left us 4-aligned.
+                    long cellsStart = writer.BaseStream.Position;
+                    writer.Write(tm.Cells);
+
+                    // Objects: 6 bytes each (kind, id, tileX u16, tileY u16). The
+                    // u16 fields want 2-byte alignment; cells are an even count of
+                    // bytes (2 per cell) so we are still even here, and each record
+                    // is 6 bytes, keeping every tileX/tileY 2-aligned.
+                    long objectsStart = writer.BaseStream.Position;
+                    foreach (var o in tm.Objects)
+                    {
+                        writer.Write(o.Kind);
+                        writer.Write(o.Id);
+                        writer.Write(o.TileX);
+                        writer.Write(o.TileY);
+                    }
+
+                    long curPos = writer.BaseStream.Position;
+                    writer.Seek((int)cellsOffsetPos, SeekOrigin.Begin);
+                    writer.Write((uint)cellsStart);
+                    writer.Seek((int)objectsOffsetPos, SeekOrigin.Begin);
+                    writer.Write((uint)(tm.Objects.Count > 0 ? objectsStart : 0));
+                    writer.Seek((int)tilemapTableOffsetPos, SeekOrigin.Begin);
+                    writer.Write((uint)tilemapStart);
+                    writer.Seek((int)curPos, SeekOrigin.Begin);
+
+                    log?.Invoke($"Tilemap {tm.Width}x{tm.Height} tile={tm.TileW}x{tm.TileH} " +
+                                $"sheet={tm.TilesetSheet} objects={tm.Objects.Count} written.", LogType.Log);
+                }
+
+                // ------------------------------------------------------
+                // NO MORE DEAD ZONE - pixel/audio data goes into separate files.
                 // pixelDataOffset is written as 0 to signal v20 format.
-                // ══════════════════════════════════════════════════════
+                // ------------------------------------------------------
 
                 // Backfill pixelDataOffset as 0 (signals: no dead zone in this file)
                 {
@@ -1014,7 +1304,7 @@ namespace SplashEdit.RuntimeCode
                     writer.Seek((int)curPos, SeekOrigin.Begin);
                 }
 
-                // Audio ADPCM data offset placeholders → 0 (data is in .spu file)
+                // Audio ADPCM data offset placeholders -> 0 (data is in .spu file)
                 foreach (var pos in audioDataOffsetPositions)
                 {
                     long curPos = writer.BaseStream.Position;
@@ -1023,7 +1313,7 @@ namespace SplashEdit.RuntimeCode
                     writer.Seek((int)curPos, SeekOrigin.Begin);
                 }
 
-                // Font pixel data offset placeholders → 0 (data is in .vram file)
+                // Font pixel data offset placeholders -> 0 (data is in .vram file)
                 foreach (var pos in fontDataOffsetPositions)
                 {
                     long curPos = writer.BaseStream.Position;
@@ -1047,16 +1337,16 @@ namespace SplashEdit.RuntimeCode
                     WriteMemcardSection(writer, scene, log);
                 }
 
-                // Backfill live data offsets (lua, mesh — these still point within the splashpack)
+                // Backfill live data offsets (lua, mesh - these still point within the splashpack)
                 BackfillOffsets(writer, luaOffset, "lua", log);
                 BackfillOffsets(writer, meshOffset, "mesh", log);
             }
 
-            // ══════════════════════════════════════════════════════════════
-            // Write VRAM file (.vram) — atlas pixels + CLUT data + font pixels
+            // --------------------------------------------------------------
+            // Write VRAM file (.vram) - atlas pixels + CLUT data + font pixels
             // Format: VRM header + per-atlas entries + per-CLUT entries + per-font entries
             // Each entry: metadata + inline pixel data (self-contained, no offsets)
-            // ══════════════════════════════════════════════════════════════
+            // --------------------------------------------------------------
             {
                 string vramPath = System.IO.Path.ChangeExtension(path, ".vram");
                 using (BinaryWriter vw = new BinaryWriter(
@@ -1077,7 +1367,7 @@ namespace SplashEdit.RuntimeCode
                         vw.Write((ushort)atlas.PositionY);
                         vw.Write((ushort)atlas.Width);
                         vw.Write((ushort)TextureAtlas.Height);
-                        // Inline pixel data: width × height × 2 bytes
+                        // Inline pixel data: width x height x 2 bytes
                         for (int y = 0; y < atlas.vramPixels.GetLength(1); y++)
                             for (int x = 0; x < atlas.vramPixels.GetLength(0); x++)
                                 vw.Write(atlas.vramPixels[x, y].Pack());
@@ -1124,11 +1414,11 @@ namespace SplashEdit.RuntimeCode
                 }
             }
 
-            // ══════════════════════════════════════════════════════════════
-            // Write SPU file (.spu) — audio ADPCM data
+            // --------------------------------------------------------------
+            // Write SPU file (.spu) - audio ADPCM data
             // Format: SPU header + per-clip entries
             // Each entry: sizeBytes(u32) sampleRate(u16) loop(u8) pad(u8) + ADPCM data
-            // ══════════════════════════════════════════════════════════════
+            // --------------------------------------------------------------
             {
                 string spuPath = System.IO.Path.ChangeExtension(path, ".spu");
                 int audioClipCountForSpu = scene.audioClips?.Length ?? 0;
@@ -1169,9 +1459,9 @@ namespace SplashEdit.RuntimeCode
             log?.Invoke($"{totalFaces} faces written to {Path.GetFileName(path)}", LogType.Log);
         }
 
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
         // Static helpers
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
 
         private static void WriteVertexPosition(BinaryWriter w, PSXVertex v)
         {
@@ -1267,7 +1557,7 @@ namespace SplashEdit.RuntimeCode
             }
         }
 
-        // ─── Memory card section (v21) ───
+        // --- Memory card section (v21) ---
 
         // Writes exactly `length` bytes of ASCII, truncating or zero-padding.
         private static void WriteFixedAscii(BinaryWriter writer, string s, int length)
