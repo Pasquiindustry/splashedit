@@ -108,11 +108,11 @@ namespace SplashEdit.RuntimeCode
             {
                 PSXSpriteSheet sheet = sheets[i];
                 PSXTexture2D tex = sheet.PackedTexture;
+                // Anims and the tilemap refer to sheets by their index in this
+                // list, so skipping one would shift every sheet after it.
                 if (tex == null)
-                {
-                    Debug.LogWarning($"[SpriteSheet] '{sheet.SheetName}' has NULL PackedTexture!");
-                    continue;
-                }
+                    throw new System.InvalidOperationException(
+                        $"[SpriteSheet] '{sheet.SheetName}' was not packed into VRAM.");
 
                 // A 4bpp texture stores four texels per VRAM hword, so the
                 // packer's X is in hwords and the U axis needs expanding - the
@@ -153,11 +153,6 @@ namespace SplashEdit.RuntimeCode
                         Loop = anim.loop,
                     });
                 }
-
-                Debug.Log($"[SpriteSheet] '{sheet.SheetName}' bpp={(int)tex.BitDepth} " +
-                          $"grid={sheet.Columns}x{sheet.Rows} cell={sheet.CellWidth}x{sheet.CellHeight} " +
-                          $"tpage=({tex.TexpageX},{tex.TexpageY}) uv0=({(byte)(tex.PackingX * expander)},{(byte)tex.PackingY}) " +
-                          $"anims={sheet.Animations.Count}");
             }
         }
 
