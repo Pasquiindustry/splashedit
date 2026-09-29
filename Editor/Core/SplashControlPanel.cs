@@ -297,7 +297,7 @@ namespace SplashEdit.EditorCode
             else
             {
                 _selectedReleaseIndex = EditorGUILayout.Popup(_selectedReleaseIndex, _releaseDisplayNames);
-                if (GUILayout.Button("(cycle)", EditorStyles.miniButton, GUILayout.Width(22)))
+                if (GUILayout.Button(new GUIContent("R", "Refresh the release list"), EditorStyles.miniButton, GUILayout.Width(22)))
                     FetchGitHubReleases();
             }
             EditorGUILayout.EndHorizontal();
@@ -412,7 +412,7 @@ namespace SplashEdit.EditorCode
             {
                 var prevColor = GUI.contentColor;
                 GUI.contentColor = PSXEditorStyles.Success;
-                GUILayout.Label("yes Path is set and valid", EditorStyles.miniLabel);
+                GUILayout.Label("Path is set and valid", EditorStyles.miniLabel);
                 GUI.contentColor = prevColor;
             }
 

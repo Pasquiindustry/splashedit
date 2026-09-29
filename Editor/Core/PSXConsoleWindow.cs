@@ -293,7 +293,7 @@ namespace SplashEdit.EditorCode
             _wrapLines = GUILayout.Toggle(_wrapLines, "Wrap", EditorStyles.toolbarButton, GUILayout.Width(40));
 
             // Auto-scroll
-            _autoScroll = GUILayout.Toggle(_autoScroll, "Autov", EditorStyles.toolbarButton, GUILayout.Width(50));
+            _autoScroll = GUILayout.Toggle(_autoScroll, new GUIContent("Auto", "Scroll to the newest line"), EditorStyles.toolbarButton, GUILayout.Width(50));
 
             // Clear
             if (GUILayout.Button("Clear", EditorStyles.toolbarButton, GUILayout.Width(45)))
