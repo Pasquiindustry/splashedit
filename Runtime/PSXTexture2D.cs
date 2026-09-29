@@ -112,6 +112,9 @@ namespace SplashEdit.RuntimeCode
         public ushort ClutPackingX;
         public ushort ClutPackingY;
 
+        /// <summary>Whether this was quantized with cutout transparency.</summary>
+        public bool Cutout { get; private set; }
+
         private int _maxColors;
 
         public VRAMPixel[,] ImageData { get; set; }
@@ -146,6 +149,7 @@ namespace SplashEdit.RuntimeCode
             psxTex.Height = inputTexture.height;
 
             psxTex.BitDepth = bitDepth;
+            psxTex.Cutout = cutout;
 
 
             if (bitDepth == PSXBPP.TEX_16BIT)
