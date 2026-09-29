@@ -1,7 +1,6 @@
 using SplashEdit.RuntimeCode;
 using UnityEditor;
 using UnityEngine;
-using UnityEngine.UI;
 
 namespace SplashEdit.EditorCode
 {
