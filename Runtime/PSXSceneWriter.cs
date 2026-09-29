@@ -525,7 +525,21 @@ namespace SplashEdit.RuntimeCode
                     foreach (PSXAgent agent in scene.agents)
                     {
                         var exp = agent != null ? agent.GetComponent<PSXObjectExporter>() : null;
-                        int goIndex = (exp != null && exporterIndex.TryGetValue(exp, out int idx)) ? idx : 0xFFFF;
+                        int goIndex = (exp != null && exporterIndex.TryGetValue(exp, out int idx)) ? idx : -1;
+                        // A skinned object's own PSXObjectExporter is skipped in favour of
+                        // the skinned proxy, so look the proxy up instead.
+                        if (goIndex < 0 && agent != null)
+                        {
+                            var skin = agent.GetComponent<PSXSkinnedObjectExporter>();
+                            if (skin != null && skin.ProxyExporter != null &&
+                                exporterIndex.TryGetValue(skin.ProxyExporter, out int proxyIdx))
+                                goIndex = proxyIdx;
+                        }
+                        // The runtime maps gameObjectIndex + 1 to an actor id, so 0xFFFF
+                        // would wrap to actor 0, the player.
+                        if (goIndex < 0)
+                            throw new System.InvalidOperationException(
+                                $"[Agent] '{(agent != null ? agent.name : "null")}' is not on an exported object.");
 
                         int waypointCount = 0;
                         byte flags = 0;
