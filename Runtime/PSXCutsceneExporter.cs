@@ -38,7 +38,7 @@ namespace SplashEdit.RuntimeCode
         /// <param name="writer">Binary writer positioned after all prior sections.</param>
         /// <param name="cutscenes">Cutscene clips to export (may be null/empty).</param>
         /// <param name="exporters">Scene object exporters for name validation.</param>
-        /// <param name="audioSources">Audio sources for clip name → index resolution.</param>
+        /// <param name="audioSources">Audio sources for clip name -> index resolution.</param>
         /// <param name="gteScaling">GTE scaling factor.</param>
         /// <param name="cutsceneTableStart">Returns the file position where the cutscene table starts.</param>
         /// <param name="log">Optional log callback.</param>
@@ -65,7 +65,7 @@ namespace SplashEdit.RuntimeCode
                 cutscenes = trimmed;
             }
 
-            // Build audio source name → index lookup
+            // Build audio source name -> index lookup
             Dictionary<string, int> audioNameToIndex = new Dictionary<string, int>();
             if (audioSources != null)
             {
@@ -78,7 +78,7 @@ namespace SplashEdit.RuntimeCode
 
             AlignToFourBytes(writer);
 
-            // ── Cutscene Table ──
+            // -- Cutscene Table --
             cutsceneTableStart = writer.BaseStream.Position;
 
             // SPLASHPACKCutsceneEntry: 12 bytes each
@@ -95,7 +95,7 @@ namespace SplashEdit.RuntimeCode
                 writer.Write((uint)0);  // nameOffset placeholder
             }
 
-            // ── Per-cutscene data ──
+            // -- Per-cutscene data --
             for (int ci = 0; ci < cutscenes.Length; ci++)
             {
                 PSXCutsceneClip clip = cutscenes[ci];
@@ -182,7 +182,7 @@ namespace SplashEdit.RuntimeCode
                 skinAnimEventsOffsetPlaceholder = writer.BaseStream.Position;
                 writer.Write((uint)0);  // skinAnimEventsOffset placeholder
 
-                // ── Tracks ──
+                // -- Tracks --
                 AlignToFourBytes(writer);
                 long tracksStart = writer.BaseStream.Position;
 
@@ -207,7 +207,7 @@ namespace SplashEdit.RuntimeCode
                     writer.Write((uint)0);  // keyframesOffset placeholder
                 }
 
-                // ── Keyframe data (per track) ──
+                // -- Keyframe data (per track) --
                 for (int ti = 0; ti < trackCount; ti++)
                 {
                     PSXCutsceneTrack track = clip.Tracks[ti];
@@ -245,7 +245,7 @@ namespace SplashEdit.RuntimeCode
                             case PSXTrackType.CameraRotation:
                             case PSXTrackType.ObjectRotation:
                             {
-                                // Rotation: degrees → psyqo::Angle raw (pi-units)
+                                // Rotation: degrees -> psyqo::Angle raw (pi-units)
                                 // Negate X (pitch) and Z (roll) to compensate for the
                                 // Y-axis flip between Unity (Y-up) and PSX (Y-down).
                                 short rx = DegreesToAngleRaw(-kf.Value.x);
@@ -340,7 +340,7 @@ namespace SplashEdit.RuntimeCode
                     }
                 }
 
-                // ── Object / UI target name strings (per track) ──
+                // -- Object / UI target name strings (per track) --
                 for (int ti = 0; ti < trackCount; ti++)
                 {
                     PSXCutsceneTrack track = clip.Tracks[ti];
@@ -361,7 +361,7 @@ namespace SplashEdit.RuntimeCode
                     // else: objectNameOffset stays 0
                 }
 
-                // ── Audio events ──
+                // -- Audio events --
                 AlignToFourBytes(writer);
                 long audioEventsStart = writer.BaseStream.Position;
 
@@ -377,13 +377,13 @@ namespace SplashEdit.RuntimeCode
                     writer.Write((byte)0); // pad
                 }
 
-                // ── Skin anim events (v19) ──
+                // -- Skin anim events (v19) --
                 AlignToFourBytes(writer);
                 long skinAnimEventsStart = writer.BaseStream.Position;
 
                 foreach (var evt in validSkinAnims)
                 {
-                    // Resolve target object → skinned mesh index
+                    // Resolve target object -> skinned mesh index
                     byte meshIdx = 0;
                     byte clipIdx2 = 0;
                     if (skinnedExporters != null)
@@ -412,7 +412,7 @@ namespace SplashEdit.RuntimeCode
                     writer.Write((byte)0); // pad
                 }
 
-                // ── Cutscene name string ──
+                // -- Cutscene name string --
                 string csName = clip.CutsceneName ?? "unnamed";
                 if (csName.Length > MAX_NAME_LEN) csName = csName.Substring(0, MAX_NAME_LEN);
                 long nameStartPos = writer.BaseStream.Position;
@@ -420,7 +420,7 @@ namespace SplashEdit.RuntimeCode
                 writer.Write(csNameBytes);
                 writer.Write((byte)0); // null terminator
 
-                // ── Backfill SPLASHPACKCutscene offsets ──
+                // -- Backfill SPLASHPACKCutscene offsets --
                 {
                     long curPos = writer.BaseStream.Position;
 
@@ -446,7 +446,7 @@ namespace SplashEdit.RuntimeCode
                     writer.Seek((int)curPos, SeekOrigin.Begin);
                 }
 
-                // ── Backfill cutscene table entry ──
+                // -- Backfill cutscene table entry --
                 {
                     long curPos = writer.BaseStream.Position;
                     writer.Seek((int)entryPositions[ci], SeekOrigin.Begin);

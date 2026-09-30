@@ -99,7 +99,7 @@ namespace SplashEdit.RuntimeCode
     /// </summary>
     public class PSXRoomBuilder
     {
-        private const int CELLS_PER_AXIS = 2; // 2×2×2 = 8 cells per room
+        private const int CELLS_PER_AXIS = 2; // 2x2x2 = 8 cells per room
 
         private PSXRoom[] _rooms;
         private List<PSXPortal> _portals = new List<PSXPortal>();
@@ -263,7 +263,7 @@ namespace SplashEdit.RuntimeCode
         }
 
         /// <summary>
-        /// Subdivide each room's triangle list into a coarse 3D grid (CELLS_PER_AXIS³).
+        /// Subdivide each room's triangle list into a coarse 3D grid (CELLS_PER_AXIS^3).
         /// Each cell gets its own tight AABB and contiguous tri-ref sublist.
         /// The room's tri-ref list is rewritten so cells point into it.
         /// </summary>
@@ -532,7 +532,7 @@ namespace SplashEdit.RuntimeCode
         {
             if (portalLinks == null) return;
 
-            // Build a fast lookup: PSXRoom instance → index.
+            // Build a fast lookup: PSXRoom instance -> index.
             var roomIndex = new Dictionary<PSXRoom, int>();
             for (int i = 0; i < _rooms.Length; i++)
                 roomIndex[_rooms[i]] = i;
@@ -542,28 +542,28 @@ namespace SplashEdit.RuntimeCode
                 if (link == null) continue;
                 if (link.RoomA == null || link.RoomB == null)
                 {
-                    Debug.LogWarning($"PSXPortalLink '{link.name}' has unassigned room references — skipped.");
+                    Debug.LogWarning($"PSXPortalLink '{link.name}' has unassigned room references - skipped.");
                     continue;
                 }
                 if (link.RoomA == link.RoomB)
                 {
-                    Debug.LogWarning($"PSXPortalLink '{link.name}' references the same room twice — skipped.");
+                    Debug.LogWarning($"PSXPortalLink '{link.name}' references the same room twice - skipped.");
                     continue;
                 }
                 if (!roomIndex.TryGetValue(link.RoomA, out int idxA))
                 {
-                    Debug.LogWarning($"PSXPortalLink '{link.name}': RoomA '{link.RoomA.name}' is not a known PSXRoom — skipped.");
+                    Debug.LogWarning($"PSXPortalLink '{link.name}': RoomA '{link.RoomA.name}' is not a known PSXRoom - skipped.");
                     continue;
                 }
                 if (!roomIndex.TryGetValue(link.RoomB, out int idxB))
                 {
-                    Debug.LogWarning($"PSXPortalLink '{link.name}': RoomB '{link.RoomB.name}' is not a known PSXRoom — skipped.");
+                    Debug.LogWarning($"PSXPortalLink '{link.name}': RoomB '{link.RoomB.name}' is not a known PSXRoom - skipped.");
                     continue;
                 }
 
                 // Auto-correct normal direction: ensure it points from roomA toward roomB.
                 // The user may place the PSXPortalLink facing either way; the runtime
-                // backface cull assumes the normal always points A→B.
+                // backface cull assumes the normal always points A->B.
                 Vector3 portalNormal = link.transform.forward;
                 Vector3 portalRight = link.transform.right;
                 Vector3 portalUp = link.transform.up;
@@ -572,12 +572,12 @@ namespace SplashEdit.RuntimeCode
                 Vector3 aToB = (roomBCenter - roomACenter).normalized;
                 if (Vector3.Dot(portalNormal, aToB) < 0)
                 {
-                    // Normal faces toward A instead of B — flip it.
+                    // Normal faces toward A instead of B - flip it.
                     // Also flip the right axis to keep the coordinate system consistent
-                    // (normal × right = up must stay right-handed).
+                    // (normal x right = up must stay right-handed).
                     portalNormal = -portalNormal;
                     portalRight = -portalRight;
-                    Debug.Log($"PSXPortalLink '{link.name}': normal auto-corrected to point from RoomA→RoomB.");
+                    Debug.Log($"PSXPortalLink '{link.name}': normal auto-corrected to point from RoomA->RoomB.");
                 }
 
                 _portals.Add(new PSXPortal
@@ -595,7 +595,7 @@ namespace SplashEdit.RuntimeCode
 
         /// <summary>
         /// Write room/portal data to the splashpack binary.
-        /// Layout: [RoomData × (N+1)] [PortalData × P] [TriangleRef × T] [RoomCell × C]
+        /// Layout: [RoomData x (N+1)] [PortalData x P] [TriangleRef x T] [RoomCell x C]
         /// </summary>
         public void WriteToBinary(System.IO.BinaryWriter writer, float gteScaling)
         {
@@ -636,7 +636,7 @@ namespace SplashEdit.RuntimeCode
                 runningTriRefOffset += _roomTriRefs[i].Count;
             }
 
-            // Catch-all room (always rendered) — written as an extra "room" entry
+            // Catch-all room (always rendered) - written as an extra "room" entry
             {
                 int catchAllRoomIdx = _rooms.Length; // index of catch-all in cell arrays
                 writer.Write(PSXTrig.ConvertWorldToFixed12(-1000f / gteScaling));
@@ -689,7 +689,7 @@ namespace SplashEdit.RuntimeCode
                 writer.Write((short)Mathf.Clamp(Mathf.RoundToInt(portal.up.z * 4096f), -32768, 32767));
             }
 
-            // Triangle refs (4 bytes each) — rooms in order, then catch-all.
+            // Triangle refs (4 bytes each) - rooms in order, then catch-all.
             // After GenerateCells, tri-refs are already ordered by cell within each room.
             for (int i = 0; i < _rooms.Length; i++)
             {

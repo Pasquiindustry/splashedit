@@ -293,7 +293,7 @@ namespace SplashEdit.RuntimeCode
             float leafCost = triangles.Count * INTERSECT_COST;
             if (bestAxis < 0 || bestCost >= leafCost)
             {
-                // No beneficial split found — make a leaf
+                // No beneficial split found - make a leaf
                 node.triangles = triangles.Select(t => t.reference).ToList();
                 return node;
             }

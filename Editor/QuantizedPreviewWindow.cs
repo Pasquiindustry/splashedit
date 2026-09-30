@@ -155,9 +155,9 @@ namespace SplashEdit.EditorCode
 
                     // Convert the CLUT colors from 5-bit to float values (0-1 range)
                     Vector3 color = new Vector3(
-                        clut[index].R / 31.0f,  // Red: bits 0–4
-                        clut[index].G / 31.0f,  // Green: bits 5–9
-                        clut[index].B / 31.0f   // Blue: bits 10–14
+                        clut[index].R / 31.0f,  // Red: bits 0-4
+                        clut[index].G / 31.0f,  // Green: bits 5-9
+                        clut[index].B / 31.0f   // Blue: bits 10-14
                     );
 
                     // Create a small color preview box for each color in the CLUT

@@ -6,14 +6,14 @@ using System.Linq;
 namespace SplashEdit.EditorCode
 {
     /// <summary>
-    /// Minimal menu items — everything goes through the unified Control Panel.
+    /// Minimal menu items - everything goes through the unified Control Panel.
     /// Only keeps: Control Panel shortcut + GameObject creation helpers.
     /// </summary>
     public static class PSXMenuItems
     {
         private const string MENU_ROOT = "PlayStation 1/";
         
-        // ───── Main Entry Point ─────
+        // ----- Main Entry Point -----
         
         [MenuItem(MENU_ROOT + "SplashEdit Control Panel %#l", false, 0)]
         public static void OpenControlPanel()
@@ -27,7 +27,7 @@ namespace SplashEdit.EditorCode
             PSXAboutWindow.ShowWindow();
         }
         
-        // ───── GameObject Menu ─────
+        // ----- GameObject Menu -----
         
         [MenuItem("GameObject/PlayStation 1/Scene Exporter", false, 10)]
         public static void CreateSceneExporter(MenuCommand menuCommand)
@@ -61,7 +61,7 @@ namespace SplashEdit.EditorCode
             Selection.activeGameObject = go;
         }
         
-        // ───── Context Menu ─────
+        // ----- Context Menu -----
         
         [MenuItem("CONTEXT/MeshFilter/Add PSX Object Exporter")]
         public static void AddPSXObjectExporterFromMesh(MenuCommand command)

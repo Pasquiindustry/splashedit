@@ -13,13 +13,13 @@ namespace SplashEdit.EditorCode
     {
         public string sceneName;
 
-        // ─── Main RAM ───
+        // --- Main RAM ---
         public long splashpackFileSize;     // Total file on disc
         public long splashpackLiveSize;     // Bytes kept in RAM at runtime (before bulk data freed)
         public int  triangleCount;
         public int  gameObjectCount;
 
-        // ─── VRAM (1024 x 512 x 2 = 1,048,576 bytes) ───
+        // --- VRAM (1024 x 512 x 2 = 1,048,576 bytes) ---
         public long framebufferSize;        // 2 x W x H x 2
         public long textureAtlasSize;       // Sum of atlas pixel data
         public long clutSize;               // Sum of CLUT entries x 2
@@ -27,14 +27,14 @@ namespace SplashEdit.EditorCode
         public int  atlasCount;
         public int  clutCount;
 
-        // ─── SPU RAM (512KB, 0x1010 reserved) ───
+        // --- SPU RAM (512KB, 0x1010 reserved) ---
         public long audioDataSize;
         public int  audioClipCount;
 
-        // ─── CD Storage ───
+        // --- CD Storage ---
         public long loaderPackSize;
 
-        // ─── Constants ───
+        // --- Constants ---
         public const long TOTAL_RAM         = 2 * 1024 * 1024;
         public const long KERNEL_RESERVED   = 0x10000;          // 64KB kernel area
         public const long USABLE_RAM        = TOTAL_RAM - KERNEL_RESERVED;
@@ -103,7 +103,7 @@ namespace SplashEdit.EditorCode
         {
             var r = new SceneMemoryReport { sceneName = sceneName };
 
-            // ── File sizes ──
+            // -- File sizes --
             if (File.Exists(splashpackPath))
                 r.splashpackFileSize = new FileInfo(splashpackPath).Length;
             if (!string.IsNullOrEmpty(loaderPackPath) && File.Exists(loaderPackPath))
@@ -111,20 +111,20 @@ namespace SplashEdit.EditorCode
 
             r.triangleCount = triangleCount;
 
-            // ── Parse splashpack header for counts and pixelDataOffset ──
+            // -- Parse splashpack header for counts and pixelDataOffset --
             if (File.Exists(splashpackPath))
             {
                 try { ReadHeader(splashpackPath, r); }
                 catch (Exception e) { Debug.LogWarning($"Memory report: failed to read header: {e.Message}"); }
             }
 
-            // ── Framebuffers ──
+            // -- Framebuffers --
             int fbW = SplashSettings.ResolutionWidth;
             int fbH = SplashSettings.ResolutionHeight;
             int fbCount = SplashSettings.DualBuffering ? 2 : 1;
             r.framebufferSize = fbW * fbH * 2L * fbCount;
 
-            // ── VRAM: Texture atlases + CLUTs ──
+            // -- VRAM: Texture atlases + CLUTs --
             if (atlases != null)
             {
                 r.atlasCount = atlases.Length;
@@ -142,7 +142,7 @@ namespace SplashEdit.EditorCode
                 }
             }
 
-            // ── VRAM: Custom fonts ──
+            // -- VRAM: Custom fonts --
             if (fonts != null)
             {
                 foreach (var font in fonts)
@@ -152,7 +152,7 @@ namespace SplashEdit.EditorCode
                 }
             }
 
-            // ── SPU: Audio ──
+            // -- SPU: Audio --
             if (audioExportSizes != null)
             {
                 r.audioClipCount = audioExportSizes.Length;

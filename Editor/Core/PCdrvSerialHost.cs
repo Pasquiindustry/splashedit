@@ -10,11 +10,11 @@ using UnityEngine;
 namespace SplashEdit.EditorCode
 {
     /// <summary>
-    /// PCdrv Host — serves files to a PS1 over serial (Unirom/NOTPSXSerial protocol).
+    /// PCdrv Host - serves files to a PS1 over serial (Unirom/NOTPSXSerial protocol).
     /// 
     /// PCdrv uses MIPS `break` instructions to request file I/O from the host.
     /// For real hardware running Unirom, we must:
-    ///   1. Enter debug mode (DEBG/OKAY) — installs Unirom's kernel-resident SIO handler
+    ///   1. Enter debug mode (DEBG/OKAY) - installs Unirom's kernel-resident SIO handler
     ///   2. Continue execution (CONT/OKAY)
     ///   3. Monitor serial for escape sequences: 0x00 followed by 'p' = PCDrv command
     ///   4. Handle file operations (init, open, read, close, seek, etc.)
@@ -47,7 +47,7 @@ namespace SplashEdit.EditorCode
             public FileAccess Mode;
         }
 
-        // Protocol escape char — PCDrv commands are prefixed with 0x00 + 'p'
+        // Protocol escape char - PCDrv commands are prefixed with 0x00 + 'p'
         private const byte ESCAPE_CHAR = 0x00;
 
         // PCDrv function codes (from Unirom kernel)
@@ -101,9 +101,9 @@ namespace SplashEdit.EditorCode
 
         /// <summary>
         /// Starts the PCDrv monitor loop on an already-open serial port.
-        /// Use this after UniromUploader.UploadExeForPCdrv() which sends DEBG → SEXE
+        /// Use this after UniromUploader.UploadExeForPCdrv() which sends DEBG -> SEXE
         /// and returns the open port. The debug hooks are already installed and the
-        /// exe is already running — we just need to listen for escape sequences.
+        /// exe is already running - we just need to listen for escape sequences.
         /// </summary>
         public void Start(SerialPort openPort)
         {
@@ -148,10 +148,10 @@ namespace SplashEdit.EditorCode
 
         public void Dispose() => Stop();
 
-        // ═══════════════════════════════════════════════════════════════
-        // Monitor loop — reads serial byte-by-byte looking for escape sequences
+        // ---------------------------------------------------------------
+        // Monitor loop - reads serial byte-by-byte looking for escape sequences
         // Matches NOTPSXSerial's Bridge.MonitorSerial()
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
 
         private void MonitorLoop(CancellationToken ct)
         {
@@ -214,12 +214,12 @@ namespace SplashEdit.EditorCode
                         if (b == 'p')
                         {
                             // PCDrv command incoming
-                            _log?.Invoke("PCdrv monitor: got escape+p → PCDrv command!");
+                            _log?.Invoke("PCdrv monitor: got escape+p -> PCDrv command!");
                             HandlePCDrvCommand(ct);
                         }
                         else
                         {
-                            // Unknown escape sequence — log it
+                            // Unknown escape sequence - log it
                             _log?.Invoke($"PCdrv monitor: unknown escape seq: 0x00 + 0x{b:X2} ('{(b >= 0x20 && b < 0x7F ? (char)b : '.')}')");
                         }
 
@@ -232,7 +232,7 @@ namespace SplashEdit.EditorCode
                         continue;
                     }
 
-                    // Regular byte — this is printf output from the PS1
+                    // Regular byte - this is printf output from the PS1
                     if (b == '\n' || b == '\r')
                     {
                         if (textBuffer.Length > 0)
@@ -273,10 +273,10 @@ namespace SplashEdit.EditorCode
             }
         }
 
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
         // PCDrv command dispatcher
         // Matches NOTPSXSerial's PCDrv.ReadCommand()
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
 
         private void HandlePCDrvCommand(CancellationToken ct)
         {
@@ -297,9 +297,9 @@ namespace SplashEdit.EditorCode
             }
         }
 
-        // ═══════════════════════════════════════════════════════════════
-        // Individual PCDrv handlers — match NOTPSXSerial's PCDrv.cs
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
+        // Individual PCDrv handlers - match NOTPSXSerial's PCDrv.cs
+        // ---------------------------------------------------------------
 
         private void HandleInit()
         {
@@ -429,7 +429,7 @@ namespace SplashEdit.EditorCode
             var f = FindOpenFile(handle);
             if (f == null)
             {
-                // No such file — "great success" per NOTPSXSerial
+                // No such file - "great success" per NOTPSXSerial
                 SendString("OKAY");
                 WriteInt32(0);
                 return;
@@ -563,9 +563,9 @@ namespace SplashEdit.EditorCode
             }
         }
 
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
         // PS1 output routing
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
 
         /// <summary>
         /// Routes PS1 printf output to PSXConsoleWindow (via _psxLog) if available,
@@ -579,11 +579,11 @@ namespace SplashEdit.EditorCode
                 _log?.Invoke($"PS1> {text}");
         }
 
-        // ═══════════════════════════════════════════════════════════════
-        // Chunked data write — matches NOTPSXSerial's WriteBytes()
+        // ---------------------------------------------------------------
+        // Chunked data write - matches NOTPSXSerial's WriteBytes()
         // Sends data in 2048-byte chunks; for protocol V2+ Unirom
         // responds with CHEK/MORE/ERR! per chunk.
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
 
         private void WriteDataChunked(byte[] data)
         {
@@ -622,9 +622,9 @@ namespace SplashEdit.EditorCode
             }
         }
 
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
         // File handle helpers
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
 
         private int NextHandle() => _files.Count + 1;
 
@@ -655,9 +655,9 @@ namespace SplashEdit.EditorCode
             return Path.Combine(_baseDir, filename);
         }
 
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
         // Low-level serial I/O
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
 
         private int ReadInt32(CancellationToken ct)
         {

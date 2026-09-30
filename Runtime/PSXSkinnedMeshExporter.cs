@@ -58,9 +58,9 @@ namespace SplashEdit.RuntimeCode
             public List<BakedClipData> Clips = new List<BakedClipData>();
         }
 
-        // ════════════════════════════════════════════════════════════
+        // ------------------------------------------------------------
         // Proxy creation
-        // ════════════════════════════════════════════════════════════
+        // ------------------------------------------------------------
 
         /// <summary>
         /// Creates a proxy GameObject with MeshFilter + MeshRenderer + PSXObjectExporter
@@ -169,9 +169,9 @@ namespace SplashEdit.RuntimeCode
             if (field != null) field.SetValue(obj, value);
         }
 
-        // ════════════════════════════════════════════════════════════
+        // ------------------------------------------------------------
         // Humanoid import auto-detection
-        // ════════════════════════════════════════════════════════════
+        // ------------------------------------------------------------
 
         /// <summary>
         /// Checks whether any assigned animation clip on this skinned exporter is a
@@ -256,9 +256,9 @@ namespace SplashEdit.RuntimeCode
 #endif
         }
 
-        // ════════════════════════════════════════════════════════════
+        // ------------------------------------------------------------
         // Bone baking
-        // ════════════════════════════════════════════════════════════
+        // ------------------------------------------------------------
 
         /// <summary>
         /// Bake all animation clips for a PSXSkinnedObjectExporter.
@@ -313,10 +313,10 @@ namespace SplashEdit.RuntimeCode
                 BoneCount = boneCount,
             };
 
-            // ── Compute per-vertex bone indices (hard skinning: highest weight wins) ──
+            // -- Compute per-vertex bone indices (hard skinning: highest weight wins) --
             result.BoneIndices = ComputePerTriangleBoneIndices(mesh, smr);
 
-            // ── Bake animation clips ──
+            // -- Bake animation clips --
             // Capture objectInverse and uniformScale ONCE before sampling.
             // This must be fixed so that bone world-space movement (root motion)
             // is captured relative to the original object position.
@@ -326,7 +326,7 @@ namespace SplashEdit.RuntimeCode
             Debug.Log($"[SkinBake] gteScaling={gteScaling}");
             Debug.Log($"[SkinBake] AnimationClips count={skinExp.AnimationClips?.Length ?? 0}, TargetFPS={skinExp.TargetFPS}");
 
-            // ── Find or create an Animator on the correct bone hierarchy root ──
+            // -- Find or create an Animator on the correct bone hierarchy root --
             // The Avatar's bone paths (e.g. "Armature/hips") are relative to the
             // FBX root transform.  skinExp may be a child/sibling of that root,
             // NOT the root itself.  We probe each ancestor of rootBone with a
@@ -780,9 +780,9 @@ namespace SplashEdit.RuntimeCode
             };
         }
 
-        // ════════════════════════════════════════════════════════════
+        // ------------------------------------------------------------
         // Binary serialization
-        // ════════════════════════════════════════════════════════════
+        // ------------------------------------------------------------
 
         /// <summary>
         /// Write the skin data section to the splashpack binary.
@@ -803,7 +803,7 @@ namespace SplashEdit.RuntimeCode
             AlignToFourBytes(writer);
             skinTableStart = writer.BaseStream.Position;
 
-            // ── Skin table: 12 bytes per entry ──
+            // -- Skin table: 12 bytes per entry --
             long[] entryPositions = new long[count];
             for (int i = 0; i < count; i++)
             {
@@ -816,7 +816,7 @@ namespace SplashEdit.RuntimeCode
                 writer.Write((uint)0);  // nameOffset placeholder
             }
 
-            // ── Per-mesh skin data blocks ──
+            // -- Per-mesh skin data blocks --
             for (int si = 0; si < count; si++)
             {
                 var skin = skinData[si];

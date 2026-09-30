@@ -18,7 +18,7 @@ namespace SplashEdit.RuntimeCode
         /// converting RectTransform coordinates to PS1 pixel space.
         /// Also collects and deduplicates custom fonts.
         /// </summary>
-        /// <param name="resolution">Target PS1 resolution (e.g. 320×240).</param>
+        /// <param name="resolution">Target PS1 resolution (e.g. 320x240).</param>
         /// <param name="fonts">Output: collected custom font data (max 3).</param>
         /// <returns>Array of canvas data ready for binary writing.</returns>
         public static PSXCanvasData[] CollectCanvases(Vector2 resolution, out PSXFontData[] fonts)
@@ -181,15 +181,48 @@ namespace SplashEdit.RuntimeCode
                 });
             }
 
+            WarnOnBudget(result);
             return result.ToArray();
         }
 
-        // ─── Coordinate baking helpers ───
+        /// <summary>
+        /// Say plainly when a scene has authored more UI than the runtime pool
+        /// holds. The loader clamps and carries on silently, so without this the
+        /// symptom is "the last canvas I added does not exist" with nothing in any
+        /// log to connect it to a limit.
+        /// </summary>
+        private static void WarnOnBudget(List<PSXCanvasData> canvases)
+        {
+            int total = 0;
+            foreach (var cv in canvases) total += cv.Elements?.Length ?? 0;
+
+            if (total > PSXUIBudget.MaxElements)
+                Debug.LogError($"[UIExporter] {total} UI elements across {canvases.Count} canvases, but the " +
+                               $"runtime pool holds {PSXUIBudget.MaxElements}. The last " +
+                               $"{total - PSXUIBudget.MaxElements} will be DROPPED at load with no error.");
+
+            if (canvases.Count > PSXUIBudget.MaxCanvases)
+                Debug.LogError($"[UIExporter] {canvases.Count} canvases, but the runtime pool holds " +
+                               $"{PSXUIBudget.MaxCanvases}. The rest will be dropped at load.");
+
+            foreach (var cv in canvases)
+            {
+                if ((cv.Elements?.Length ?? 0) <= 255) continue;
+                Debug.LogError($"[UIExporter] Canvas '{cv.Name}' has {cv.Elements.Length} elements; the " +
+                               "splashpack stores that count in one byte, so it must be 255 or fewer.");
+            }
+        }
+
+        // --- Coordinate baking helpers ---
 
         /// <summary>
         /// Convert a RectTransform into PS1 pixel-space layout values.
-        /// Handles anchor-based positioning and Y inversion.
         /// </summary>
+        /// <remarks>
+        /// The arithmetic lives in <see cref="PSXUILayout"/> so the scene-view
+        /// preview computes the identical rect. This wrapper only unpacks it into
+        /// the out-parameters the collectors below were written against.
+        /// </remarks>
         private static void BakeLayout(
             RectTransform rt, RectTransform canvasRect,
             float scaleX, float scaleY, Vector2 resolution,
@@ -197,47 +230,10 @@ namespace SplashEdit.RuntimeCode
             out byte anchorMinX, out byte anchorMinY,
             out byte anchorMaxX, out byte anchorMaxY)
         {
-            // Anchor values in 8.8 fixed point (0-255 maps to 0.0-~1.0)
-            anchorMinX = (byte)Mathf.Clamp(Mathf.RoundToInt(rt.anchorMin.x * 255f), 0, 255);
-            anchorMinY = (byte)Mathf.Clamp(Mathf.RoundToInt((1f - rt.anchorMax.y) * 255f), 0, 255); // Y invert
-            anchorMaxX = (byte)Mathf.Clamp(Mathf.RoundToInt(rt.anchorMax.x * 255f), 0, 255);
-            anchorMaxY = (byte)Mathf.Clamp(Mathf.RoundToInt((1f - rt.anchorMin.y) * 255f), 0, 255); // Y invert
-
-            if (Mathf.Approximately(rt.anchorMin.x, rt.anchorMax.x) &&
-                Mathf.Approximately(rt.anchorMin.y, rt.anchorMax.y))
-            {
-                // Fixed-size element with single anchor point
-                // anchoredPosition is the offset from the anchor in canvas pixels
-                float px = rt.anchoredPosition.x * scaleX;
-                float py = -rt.anchoredPosition.y * scaleY; // Y invert
-                float pw = rt.rect.width * scaleX;
-                float ph = rt.rect.height * scaleY;
-
-                // Adjust for pivot (anchoredPosition is at the pivot point)
-                px -= rt.pivot.x * pw;
-                py -= (1f - rt.pivot.y) * ph; // pivot Y inverted
-
-                x = (short)Mathf.RoundToInt(px);
-                y = (short)Mathf.RoundToInt(py);
-                w = (short)Mathf.Max(1, Mathf.RoundToInt(pw));
-                h = (short)Mathf.Max(1, Mathf.RoundToInt(ph));
-            }
-            else
-            {
-                // Stretched element: offsets from anchored edges
-                // offsetMin = distance from anchorMin corner, offsetMax = distance from anchorMax corner
-                float leftOff = rt.offsetMin.x * scaleX;
-                float rightOff = rt.offsetMax.x * scaleX;
-                float topOff = -rt.offsetMax.y * scaleY;  // Y invert
-                float bottomOff = -rt.offsetMin.y * scaleY; // Y invert
-
-                // For stretched elements, x/y store the offset from the anchor start,
-                // and w/h store the combined inset (negative = shrink)
-                x = (short)Mathf.RoundToInt(leftOff);
-                y = (short)Mathf.RoundToInt(topOff);
-                w = (short)Mathf.RoundToInt(rightOff - leftOff);
-                h = (short)Mathf.RoundToInt(bottomOff - topOff);
-            }
+            PSXUILayout.Baked b = PSXUILayout.Bake(rt, scaleX, scaleY);
+            x = b.X; y = b.Y; w = b.W; h = b.H;
+            anchorMinX = b.AnchorMinX; anchorMinY = b.AnchorMinY;
+            anchorMaxX = b.AnchorMaxX; anchorMaxY = b.AnchorMaxY;
         }
 
         private static string TruncateName(string name, int maxLen = 24)
@@ -246,7 +242,7 @@ namespace SplashEdit.RuntimeCode
             return name.Length > maxLen ? name.Substring(0, maxLen) : name;
         }
 
-        // ─── Collectors ───
+        // --- Collectors ---
 
         /// <summary>
         /// Walk the hierarchy depth-first in sibling order, collecting every
@@ -259,7 +255,7 @@ namespace SplashEdit.RuntimeCode
             List<PSXUIElementData> elements,
             List<PSXFontAsset> uniqueFonts)
         {
-            // GetComponentsInChildren iterates depth-first in sibling order —
+            // GetComponentsInChildren iterates depth-first in sibling order -
             // exactly the hierarchy ordering we want.
             Transform[] allTransforms = root.GetComponentsInChildren<Transform>(true);
             foreach (Transform t in allTransforms)
@@ -269,6 +265,13 @@ namespace SplashEdit.RuntimeCode
                 // Check each supported component type on this transform.
                 // A single GameObject should only have one PSX UI component,
                 // but we check all to be safe.
+                PSXUISprite spr = t.GetComponent<PSXUISprite>();
+                if (spr != null)
+                {
+                    CollectSingleSprite(spr, canvasRect, scaleX, scaleY, resolution, elements);
+                    continue;
+                }
+
                 PSXUIImage img = t.GetComponent<PSXUIImage>();
                 if (img != null)
                 {
@@ -361,6 +364,94 @@ namespace SplashEdit.RuntimeCode
             {
                 Debug.LogWarning($"[UIImage] '{img.ElementName}' has NULL PackedTexture!");
             }
+
+            elements.Add(data);
+        }
+
+        /// <summary>
+        /// One cell of a sprite sheet, exported as an Image element plus the
+        /// sheet's cell grid so the runtime can re-point it with UI.SetFrame.
+        /// </summary>
+        /// <remarks>
+        /// The sheet's pixels are already in the atlas - PSXSpriteExporter packed
+        /// them - so this costs no VRAM beyond the sheet itself, however many
+        /// elements draw from it. That is the whole reason a panel can be built
+        /// out of forty of these when forty PSXUIImages would be forty textures.
+        /// </remarks>
+        private static void CollectSingleSprite(
+            PSXUISprite spr, RectTransform canvasRect,
+            float scaleX, float scaleY, Vector2 resolution,
+            List<PSXUIElementData> elements)
+        {
+            RectTransform rt = spr.GetComponent<RectTransform>();
+            if (rt == null) return;
+
+            BakeLayout(rt, canvasRect, scaleX, scaleY, resolution,
+                out short x, out short y, out short w, out short h,
+                out byte amin_x, out byte amin_y, out byte amax_x, out byte amax_y);
+
+            var data = new PSXUIElementData
+            {
+                Type = PSXUIElementType.Image,
+                StartVisible = spr.StartVisible,
+                Name = TruncateName(spr.ElementName),
+                X = x, Y = y, W = w, H = h,
+                AnchorMinX = amin_x, AnchorMinY = amin_y,
+                AnchorMaxX = amax_x, AnchorMaxY = amax_y,
+                ColorR = (byte)Mathf.Clamp(Mathf.RoundToInt(spr.Tint.r * 255f), 0, 255),
+                ColorG = (byte)Mathf.Clamp(Mathf.RoundToInt(spr.Tint.g * 255f), 0, 255),
+                ColorB = (byte)Mathf.Clamp(Mathf.RoundToInt(spr.Tint.b * 255f), 0, 255),
+            };
+
+            PSXSpriteSheet sheet = spr.Sheet;
+            PSXTexture2D tex = sheet != null ? sheet.PackedTexture : null;
+            if (sheet == null || tex == null)
+            {
+                // Not fatal: the element still exists, still has its name, and
+                // Lua's UI.FindElement still resolves it. It just draws nothing
+                // recognisable - which is a far better handover than an export
+                // that refuses to run because one icon is unassigned.
+                Debug.LogWarning($"[UISprite] '{spr.ElementName}' has " +
+                                 (sheet == null ? "no sheet assigned." : "a sheet that was not packed - " +
+                                  "is it referenced by a PSXSprite or another PSXUISprite in this scene?"));
+                elements.Add(data);
+                return;
+            }
+
+            // A 4bpp texture stores four texels per VRAM halfword, so the packer's
+            // X is in halfwords and the U axis needs expanding - the same
+            // conversion PSXSpriteExporter.Flatten does for the sheet table.
+            int expander = 16 / (int)tex.BitDepth;
+            int baseU = tex.PackingX * expander;
+            int baseV = tex.PackingY;
+
+            int cols = Mathf.Max(1, sheet.Columns);
+            int cell = spr.ResolvedCell;
+            int u0 = baseU + (cell % cols) * sheet.CellWidth;
+            int v0 = baseV + (cell / cols) * sheet.CellHeight;
+
+            data.TexpageX = tex.TexpageX;
+            data.TexpageY = tex.TexpageY;
+            data.ClutX = (ushort)tex.ClutPackingX;
+            data.ClutY = (ushort)tex.ClutPackingY;
+            data.U0 = (byte)u0;
+            data.V0 = (byte)v0;
+            // U1/V1 are the LAST texel, inclusive - without the -1 a 256-wide
+            // sheet overflows the byte to 0 and the element samples a sliver.
+            data.U1 = (byte)(u0 + sheet.CellWidth - 1);
+            data.V1 = (byte)(v0 + sheet.CellHeight - 1);
+            data.BitDepthIndex = tex.BitDepth switch
+            {
+                PSXBPP.TEX_4BIT => 0,
+                PSXBPP.TEX_8BIT => 1,
+                PSXBPP.TEX_16BIT => 2,
+                _ => 2
+            };
+            data.CellW = (byte)sheet.CellWidth;
+            data.CellH = (byte)sheet.CellHeight;
+            data.SheetCols = (byte)Mathf.Clamp(cols, 1, 255);
+            data.BaseU = (byte)baseU;
+            data.BaseV = (byte)baseV;
 
             elements.Add(data);
         }
@@ -489,7 +580,7 @@ namespace SplashEdit.RuntimeCode
             });
         }
 
-        // ─── Legacy per-type collectors (kept for reference, no longer called) ───
+        // --- Legacy per-type collectors (kept for reference, no longer called) ---
 
         private static void CollectImages(
             Transform root, RectTransform canvasRect,
@@ -520,7 +611,7 @@ namespace SplashEdit.RuntimeCode
                 };
 
                 // Image texture data is filled in after VRAM packing by
-                // FillImageTextureData() — see PSXSceneExporter integration
+                // FillImageTextureData() - see PSXSceneExporter integration
                 if (img.PackedTexture != null)
                 {
                     PSXTexture2D tex = img.PackedTexture;

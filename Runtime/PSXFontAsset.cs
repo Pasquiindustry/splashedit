@@ -64,12 +64,12 @@ namespace SplashEdit.RuntimeCode
                 return;
             }
 
-            // ── Step 1: Populate the font atlas ──
+            // -- Step 1: Populate the font atlas --
             string ascii = "";
             for (int c = 0x20; c <= 0x7E; c++) ascii += (char)c;
             sourceFont.RequestCharactersInTexture(ascii, fontSize, FontStyle.Normal);
 
-            // ── Step 2: Get readable copy of atlas texture ──
+            // -- Step 2: Get readable copy of atlas texture --
             // For non-dynamic fonts, the atlas may only be populated at the native size.
             // Try the requested size first, then fall back to size=0.
             Texture fontTex = sourceFont.material != null ? sourceFont.material.mainTexture : null;
@@ -120,7 +120,7 @@ namespace SplashEdit.RuntimeCode
                 return;
             }
 
-            // ── Step 3: Get character info ──
+            // -- Step 3: Get character info --
             // Non-dynamic fonts only respond to size=0 or their native size.
             // Dynamic fonts respond to any size.
             CharacterInfo[] charInfos = new CharacterInfo[95];
@@ -179,7 +179,7 @@ namespace SplashEdit.RuntimeCode
                 return;
             }
 
-            // ── Step 4: Choose glyph cell dimensions ──
+            // -- Step 4: Choose glyph cell dimensions --
             // Constraints:
             //   - glyphWidth must divide 256 (valid: 4, 8, 16, 32)
             //   - ceil(95 / (256/glyphWidth)) * glyphHeight <= 256 (must fit in one texture page)
@@ -273,7 +273,7 @@ namespace SplashEdit.RuntimeCode
             // This makes the native advance widths match the bitmap exactly for
             // proportional rendering. Characters wider than cell get clipped (rare).
 
-            // ── Step 5: Render glyphs into grid ──
+            // -- Step 5: Render glyphs into grid --
             // Each glyph is LEFT-ALIGNED at native width for proportional rendering.
             // The advance widths from CharacterInfo match native glyph proportions.
             Texture2D bmp = new Texture2D(texW, texH, TextureFormat.RGBA32, false);
@@ -387,7 +387,7 @@ namespace SplashEdit.RuntimeCode
                 }
             }
 
-            // ── Step 6: Save ──
+            // -- Step 6: Save --
             string path = AssetDatabase.GetAssetPath(this);
             if (string.IsNullOrEmpty(path))
             {

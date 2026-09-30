@@ -48,7 +48,7 @@ namespace SplashEdit.RuntimeCode
 
         /// <summary>
         /// Resolve the effective font for this text element.
-        /// Checks: fontOverride → parent PSXCanvas.DefaultFont → null (system font).
+        /// Checks: fontOverride -> parent PSXCanvas.DefaultFont -> null (system font).
         /// </summary>
         public PSXFontAsset GetEffectiveFont()
         {

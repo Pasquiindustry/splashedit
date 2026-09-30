@@ -38,5 +38,17 @@ namespace SplashEdit.RuntimeCode
         [Tooltip("Default playback volume (0-127).")]
         [Range(0, 127)]
         public int DefaultVolume = 100;
+
+        [Tooltip("Cut silence off the START of the clip at export.\n\n" +
+                 "Off by default: this REWRITES your asset on the way to the " +
+                 "disc, and a lead-in you put there on purpose is not the " +
+                 "exporter's to remove.\n\n" +
+                 "Turn it on for a clip whose file begins with dead air. That " +
+                 "silence is latency - the gap between the frame that asks for " +
+                 "the sound and the frame you hear it - and it costs SPU RAM " +
+                 "for the whole round.\n\n" +
+                 "The TAIL is always kept. On a looping clip it is the interval " +
+                 "the sound repeats at.")]
+        public bool TrimLeadingSilence = false;
     }
 }

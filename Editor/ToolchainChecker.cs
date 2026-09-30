@@ -41,7 +41,7 @@ public static class ToolchainChecker
 
         try
         {
-            // macOS GUI apps have restricted PATH — check common locations directly
+            // macOS GUI apps have restricted PATH - check common locations directly
             if (Application.platform == RuntimePlatform.OSXEditor)
             {
                 string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);

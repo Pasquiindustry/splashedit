@@ -54,7 +54,7 @@ namespace SplashEdit.RuntimeCode
             _reservedAreas.Add(framebuffers[0]);
             _reservedAreas.Add(framebuffers[1]);
 
-            // Reserve the font column (x=960-1023) — custom fonts and the system font
+            // Reserve the font column (x=960-1023) - custom fonts and the system font
             // are placed here by PSXUIExporter, outside the packer's control.
             _reservedAreas.Add(new Rect(960, 0, 64, VramHeight));
 
@@ -64,7 +64,7 @@ namespace SplashEdit.RuntimeCode
         /// <summary>
         /// Packs the textures from the provided PSXObjectExporter array into VRAM.
         /// Each exporter now holds a list of textures.
-        /// Duplicates (textures with the same underlying OriginalTexture and BitDepth) across all exporters are merged.
+        /// Duplicates (textures with the same underlying OriginalTexture, BitDepth and cutout) across all exporters are merged.
         /// Returns the processed objects and the final VRAM pixel array.
         /// </summary>
         /// <param name="objects">Array of PSXObjectExporter objects to process.</param>
@@ -85,7 +85,9 @@ namespace SplashEdit.RuntimeCode
 
             // List to track unique textures and their indices
             List<PSXTexture2D> uniqueTextures = new List<PSXTexture2D>();
-            Dictionary<(int, PSXBPP), int> textureToIndexMap = new Dictionary<(int, PSXBPP), int>();
+            // Cutout is part of the key: the same source quantized with and without it
+            // gives different pixels, so the two must not be merged.
+            Dictionary<(int, PSXBPP, bool), int> textureToIndexMap = new Dictionary<(int, PSXBPP, bool), int>();
             // Track duplicates so we can propagate packing data after placement
             List<(PSXTexture2D duplicate, int uniqueIndex)> duplicates = new List<(PSXTexture2D, int)>();
 
@@ -113,7 +115,7 @@ namespace SplashEdit.RuntimeCode
                 // Process each texture in descending order of area.
                 foreach (var texture in group.OrderByDescending(tex => tex.QuantizedWidth * tex.Height))
                 {
-                    var textureKey = (texture.OriginalTexture.GetInstanceID(), texture.BitDepth);
+                    var textureKey = (texture.OriginalTexture.GetInstanceID(), texture.BitDepth, texture.Cutout);
 
                     // Check if we've already processed this texture
                     if (textureToIndexMap.TryGetValue(textureKey, out int existingIndex))
@@ -152,7 +154,7 @@ namespace SplashEdit.RuntimeCode
 
                 for (int i = 0; i < obj.Textures.Count; i++)
                 {
-                    var textureKey = (obj.Textures[i].OriginalTexture.GetInstanceID(), obj.Textures[i].BitDepth);
+                    var textureKey = (obj.Textures[i].OriginalTexture.GetInstanceID(), obj.Textures[i].BitDepth, obj.Textures[i].Cutout);
                     if (textureToIndexMap.TryGetValue(textureKey, out int newIndex))
                     {
                         oldToNewIndexMap[i] = newIndex;

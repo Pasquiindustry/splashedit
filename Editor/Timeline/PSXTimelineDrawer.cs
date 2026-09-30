@@ -310,7 +310,7 @@ namespace SplashEdit.EditorCode
             GUI.EndClip();
         }
 
-        // ── Grid lines ──
+        // -- Grid lines --
 
         private static void DrawGridLines(PSXTimelineState state, Rect localRect)
         {
@@ -329,7 +329,7 @@ namespace SplashEdit.EditorCode
             }
         }
 
-        // ── Value tracks (position, rotation, etc.) ──
+        // -- Value tracks (position, rotation, etc.) --
 
         private static void DrawValueTrack(PSXTimelineState state, PSXCutsceneTrack track, int trackIdx,
             float centerY, Rect localRect)
@@ -368,7 +368,7 @@ namespace SplashEdit.EditorCode
             }
         }
 
-        // ── Bool tracks (active/visible) ──
+        // -- Bool tracks (active/visible) --
 
         private static void DrawBoolTrack(PSXTimelineState state, PSXCutsceneTrack track, int trackIdx,
             float laneY, float centerY, Rect localRect)
@@ -407,7 +407,7 @@ namespace SplashEdit.EditorCode
             }
         }
 
-        // ── Audio event lane ──
+        // -- Audio event lane --
 
         private static void DrawAudioEventLane(PSXTimelineState state, float y, Rect localRect)
         {
@@ -437,7 +437,7 @@ namespace SplashEdit.EditorCode
             }
         }
 
-        // ── Skin anim event lane ──
+        // -- Skin anim event lane --
 
         private static void DrawSkinAnimEventLane(PSXTimelineState state, float y, Rect localRect)
         {
@@ -564,7 +564,7 @@ namespace SplashEdit.EditorCode
             EditorGUI.DrawRect(new Rect(rect.xMax - 1, rect.y, 1, rect.height), color);
         }
 
-        // ── Cached styles ──
+        // -- Cached styles --
 
         private static GUIStyle _rulerLabelStyle;
         private static GUIStyle GetRulerLabelStyle()
