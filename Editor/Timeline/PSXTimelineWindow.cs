@@ -645,7 +645,7 @@ namespace SplashEdit.EditorCode
 
             var menu = new GenericMenu();
 
-            // ── Camera tracks (cutscene only) ──
+            // -- Camera tracks (cutscene only) --
             if (_state.IsCutscene)
             {
                 menu.AddItem(new GUIContent("Camera/Position"), false, () => AddTrack(PSXTrackType.CameraPosition));
@@ -653,7 +653,7 @@ namespace SplashEdit.EditorCode
                 menu.AddItem(new GUIContent("Camera/FOV (H)"), false, () => AddTrack(PSXTrackType.CameraH));
             }
 
-            // ── Object tracks: submenu per scene object ──
+            // -- Object tracks: submenu per scene object --
             var objects = Object.FindObjectsByType<PSXObjectExporter>(FindObjectsSortMode.None);
             if (objects.Length > 0)
             {
@@ -675,7 +675,7 @@ namespace SplashEdit.EditorCode
                 menu.AddDisabledItem(new GUIContent("Object/(no PSXObjectExporters in scene)"));
             }
 
-            // ── UI Canvas Visible track ──
+            // -- UI Canvas Visible track --
             var canvases = Object.FindObjectsByType<PSXCanvas>(FindObjectsSortMode.None);
             if (canvases.Length > 0)
             {
@@ -727,7 +727,7 @@ namespace SplashEdit.EditorCode
                 menu.AddDisabledItem(new GUIContent("UI Canvas/(no PSXCanvas in scene)"));
             }
 
-            // ── Rumble tracks ──
+            // -- Rumble tracks --
             menu.AddItem(new GUIContent("Rumble/Small Motor"), false, () => AddTrack(PSXTrackType.RumbleSmall));
             menu.AddItem(new GUIContent("Rumble/Large Motor"), false, () => AddTrack(PSXTrackType.RumbleLarge));
 

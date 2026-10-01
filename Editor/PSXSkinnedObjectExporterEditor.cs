@@ -80,7 +80,7 @@ namespace SplashEdit.RuntimeCode
 
                 EditorGUILayout.Space(4);
                 EditorGUILayout.LabelField("Estimated RAM",
-                    $"{totalBytes / 1024f:F1} KB ({totalFrames} frames × {usedBones} bones × 24 B + {boneIndexBytes} B indices)");
+                    $"{totalBytes / 1024f:F1} KB ({totalFrames} frames x {usedBones} bones x 24 B + {boneIndexBytes} B indices)");
 
                 if (skinExp.AnimationClips.Length > 16)
                 {

@@ -15,16 +15,16 @@ using Debug = UnityEngine.Debug;
 namespace SplashEdit.EditorCode
 {
     /// <summary>
-    /// SplashEdit Control Panel — the single unified window for the entire pipeline.
+    /// SplashEdit Control Panel - the single unified window for the entire pipeline.
     /// One window. One button. Everything works.
     /// </summary>
     public class SplashControlPanel : EditorWindow
     {
-        // ───── Constants ─────
+        // ----- Constants -----
         private const string WINDOW_TITLE = "SplashEdit Control Panel";
         private const string MENU_PATH = "PlayStation 1/SplashEdit Control Panel %#l";
 
-        // ───── UI State ─────
+        // ----- UI State -----
         private Vector2 _scrollPos;
         private int _selectedTab = 0;
         private static readonly string[] _tabNames = { "Dependencies", "Scenes", "Music (CD-DA)", "Build", "Memory Card" };
@@ -36,23 +36,23 @@ namespace SplashEdit.EditorCode
         private bool _showBuildSection = true;
         private bool _showMemCardSection = true;
 
-        // ───── Build State ─────
+        // ----- Build State -----
         private static bool _isBuilding;
         private static bool _isRunning;
         private static bool _luaBytecodeCompiled;
         private static Process _emulatorProcess;
 
-        // ───── Scene List ─────
+        // ----- Scene List -----
         private List<SceneEntry> _sceneList = new List<SceneEntry>();
 
-        // ───── Music List ─────
+        // ----- Music List -----
         private List<MusicEntry> _musicList = new List<MusicEntry>();
 
-        // ───── Memory Reports ─────
+        // ----- Memory Reports -----
         private List<SceneMemoryReport> _memoryReports = new List<SceneMemoryReport>();
         private bool _showMemoryReport = true;
 
-        // ───── Toolchain Cache ─────
+        // ----- Toolchain Cache -----
         private bool _hasMIPS;
         private bool _hasMake;
         private bool _hasRedux;
@@ -65,19 +65,19 @@ namespace SplashEdit.EditorCode
         private bool _hasXcodeCLT;
         private bool _hasBrew;
 
-        // ───── Native project installer ─────
+        // ----- Native project installer -----
         private bool _isInstallingNative;
         private string _nativeInstallStatus = "";
         private string _manualNativePath = "";
 
-        // ───── Release selector ─────
+        // ----- Release selector -----
         private int _selectedReleaseIndex = 0;
         private string[] _releaseDisplayNames = new string[0];
         private bool _isFetchingReleases;
         private string _currentTag = "";
         private bool _isSwitchingRelease;
 
-        // ───── Native status cache (avoid expensive checks every repaint) ─────
+        // ----- Native status cache (avoid expensive checks every repaint) -----
         private bool _isGitAvailable;
         private bool _isNativeRepoInstalled;
         private double _nextNativeStatusRefreshTime;
@@ -100,9 +100,9 @@ namespace SplashEdit.EditorCode
             public string name;
         }
 
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
         // Menu & Window Lifecycle
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
 
         [MenuItem(MENU_PATH, false, 0)]
         public static void ShowWindow()
@@ -135,9 +135,9 @@ namespace SplashEdit.EditorCode
             RefreshNativeProjectStatus(force: true);
         }
 
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
         // Main GUI
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
 
         private void OnGUI()
         {
@@ -185,9 +185,9 @@ namespace SplashEdit.EditorCode
             EditorGUILayout.EndScrollView();
         }
 
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
         // Header
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
 
         private void DrawHeader()
         {
@@ -205,12 +205,12 @@ namespace SplashEdit.EditorCode
 
                 if (!_hasMIPS)
                 {
-                    statusText = "Setup required — install the MIPS toolchain to get started";
+                    statusText = "Setup required - install the MIPS toolchain to get started";
                     statusColor = PSXEditorStyles.Warning;
                 }
                 else if (!_hasNativeProject)
                 {
-                    statusText = "Native project not found — clone or set path below";
+                    statusText = "Native project not found - clone or set path below";
                     statusColor = PSXEditorStyles.Warning;
                 }
                 else if (_isBuilding)
@@ -238,9 +238,9 @@ namespace SplashEdit.EditorCode
             }
         }
 
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
         // Native Project Section
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
 
         private void DrawNativeProjectSection()
         {
@@ -262,13 +262,13 @@ namespace SplashEdit.EditorCode
             }
             else
             {
-                GUILayout.Label("Not found — download from GitHub or set path manually", EditorStyles.miniLabel);
+                GUILayout.Label("Not found - download from GitHub or set path manually", EditorStyles.miniLabel);
             }
             EditorGUILayout.EndHorizontal();
 
             EditorGUILayout.Space(6);
 
-            // ── Option 1: Download a release from GitHub ──
+            // -- Option 1: Download a release from GitHub --
             PSXEditorStyles.DrawSeparator(4, 4);
             GUILayout.Label("Download from GitHub", PSXEditorStyles.SectionHeader);
 
@@ -297,7 +297,7 @@ namespace SplashEdit.EditorCode
             else
             {
                 _selectedReleaseIndex = EditorGUILayout.Popup(_selectedReleaseIndex, _releaseDisplayNames);
-                if (GUILayout.Button("↻", EditorStyles.miniButton, GUILayout.Width(22)))
+                if (GUILayout.Button(new GUIContent("R", "Refresh the release list"), EditorStyles.miniButton, GUILayout.Width(22)))
                     FetchGitHubReleases();
             }
             EditorGUILayout.EndHorizontal();
@@ -315,7 +315,7 @@ namespace SplashEdit.EditorCode
             EditorGUILayout.BeginHorizontal();
             if (!_isNativeRepoInstalled)
             {
-                // Not installed yet — show Clone button
+                // Not installed yet - show Clone button
                 EditorGUI.BeginDisabledGroup(
                     _isInstallingNative || _releaseDisplayNames.Length == 0 ||
                     !_isGitAvailable);
@@ -327,7 +327,7 @@ namespace SplashEdit.EditorCode
             }
             else
             {
-                // Already installed — show Switch and Open buttons
+                // Already installed - show Switch and Open buttons
                 EditorGUI.BeginDisabledGroup(
                     _isSwitchingRelease || _isInstallingNative ||
                     _releaseDisplayNames.Length == 0 || !_isGitAvailable);
@@ -366,7 +366,7 @@ namespace SplashEdit.EditorCode
 
             EditorGUILayout.Space(6);
 
-            // ── Option 2: Manual path ──
+            // -- Option 2: Manual path --
             PSXEditorStyles.DrawSeparator(4, 4);
             GUILayout.Label("Or set path manually", PSXEditorStyles.SectionHeader);
             EditorGUILayout.BeginHorizontal();
@@ -412,16 +412,16 @@ namespace SplashEdit.EditorCode
             {
                 var prevColor = GUI.contentColor;
                 GUI.contentColor = PSXEditorStyles.Success;
-                GUILayout.Label("✓ Path is set and valid", EditorStyles.miniLabel);
+                GUILayout.Label("Path is set and valid", EditorStyles.miniLabel);
                 GUI.contentColor = prevColor;
             }
 
             EditorGUILayout.EndVertical();
         }
 
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
         // Toolchain Section
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
 
         private void DrawToolchainSection()
         {
@@ -432,7 +432,7 @@ namespace SplashEdit.EditorCode
 
             bool isMac = Application.platform == RuntimePlatform.OSXEditor;
 
-            // GNU Make (before MIPS — it's a prerequisite for everything on macOS)
+            // GNU Make (before MIPS - it's a prerequisite for everything on macOS)
             EditorGUILayout.BeginHorizontal();
             DrawStatusIcon(_hasMake);
             GUILayout.Label("GNU Make", GUILayout.Width(160));
@@ -516,7 +516,7 @@ namespace SplashEdit.EditorCode
                         "curl -LO https://raw.githubusercontent.com/grumpycoders/pcsx-redux/main/tools/macos-mips/mipsel-none-elf-gcc.rb && " +
                         "brew install-path ./mipsel-none-elf-binutils.rb && " +
                         "brew install-path ./mipsel-none-elf-gcc.rb",
-                        "Builds GCC from source — expect 15-30 minutes.");
+                        "Builds GCC from source - expect 15-30 minutes.");
                 }
             }
 
@@ -596,9 +596,9 @@ namespace SplashEdit.EditorCode
             EditorGUILayout.EndVertical();
         }
 
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
         // Scenes Section
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
 
         private void DrawScenesSection()
         {
@@ -646,17 +646,17 @@ namespace SplashEdit.EditorCode
 
                 // Move buttons
                 EditorGUI.BeginDisabledGroup(i == 0);
-                if (GUILayout.Button("▲", EditorStyles.miniButtonLeft, GUILayout.Width(22)))
+                if (GUILayout.Button("^", EditorStyles.miniButtonLeft, GUILayout.Width(22)))
                     moveUp = i;
                 EditorGUI.EndDisabledGroup();
 
                 EditorGUI.BeginDisabledGroup(i == _sceneList.Count - 1);
-                if (GUILayout.Button("▼", EditorStyles.miniButtonRight, GUILayout.Width(22)))
+                if (GUILayout.Button("v", EditorStyles.miniButtonRight, GUILayout.Width(22)))
                     moveDown = i;
                 EditorGUI.EndDisabledGroup();
 
                 // Remove
-                if (GUILayout.Button("×", EditorStyles.miniButton, GUILayout.Width(20)))
+                if (GUILayout.Button("x", EditorStyles.miniButton, GUILayout.Width(20)))
                     removeIndex = i;
 
                 EditorGUILayout.EndHorizontal();
@@ -710,9 +710,9 @@ namespace SplashEdit.EditorCode
             EditorGUILayout.EndVertical();
         }
 
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
         // Memory Card Section (global project save settings)
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
 
         private void DrawMemoryCardSection()
         {
@@ -761,7 +761,7 @@ namespace SplashEdit.EditorCode
                 if (!string.IsNullOrEmpty(data.MemCardTitle) && data.MemCardTitle.Length > 32)
                     EditorGUILayout.HelpBox("Save title is longer than 32 characters and will be truncated.", MessageType.Warning);
                 if (data.MemCardIcons == null || data.MemCardIcons.Length == 0)
-                    EditorGUILayout.HelpBox("No icon assigned — a blank icon will be shown in the BIOS. Assign a 16x16 texture.", MessageType.Info);
+                    EditorGUILayout.HelpBox("No icon assigned - a blank icon will be shown in the BIOS. Assign a 16x16 texture.", MessageType.Info);
                 else if (data.MemCardIcons.Length > 3)
                     EditorGUILayout.HelpBox("Only the first 3 icon frames are used.", MessageType.Info);
             }
@@ -769,9 +769,9 @@ namespace SplashEdit.EditorCode
             EditorGUILayout.EndVertical();
         }
 
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
         // Music Section
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
 
         private void DrawMusicSection()
         {
@@ -820,17 +820,17 @@ namespace SplashEdit.EditorCode
 
                 // Move buttons
                 EditorGUI.BeginDisabledGroup(i == 0);
-                if (GUILayout.Button("▲", EditorStyles.miniButtonLeft, GUILayout.Width(22)))
+                if (GUILayout.Button("^", EditorStyles.miniButtonLeft, GUILayout.Width(22)))
                     moveUp = i;
                 EditorGUI.EndDisabledGroup();
 
                 EditorGUI.BeginDisabledGroup(i == _musicList.Count - 1);
-                if (GUILayout.Button("▼", EditorStyles.miniButtonRight, GUILayout.Width(22)))
+                if (GUILayout.Button("v", EditorStyles.miniButtonRight, GUILayout.Width(22)))
                     moveDown = i;
                 EditorGUI.EndDisabledGroup();
 
                 // Remove
-                if (GUILayout.Button("×", EditorStyles.miniButton, GUILayout.Width(20)))
+                if (GUILayout.Button("x", EditorStyles.miniButton, GUILayout.Width(20)))
                     removeIndex = i;
 
                 EditorGUILayout.EndHorizontal();
@@ -880,9 +880,9 @@ namespace SplashEdit.EditorCode
             EditorGUILayout.EndVertical();
         }
 
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
         // VRAM & Textures Section
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
 
         private void DrawVRAMSection()
         {
@@ -912,9 +912,9 @@ namespace SplashEdit.EditorCode
             EditorGUILayout.EndVertical();
         }
 
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
         // Build & Run Section
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
 
         private void DrawBuildSection()
         {
@@ -981,7 +981,7 @@ namespace SplashEdit.EditorCode
                 EditorGUILayout.BeginHorizontal();
                 GUILayout.Label("License File:", GUILayout.Width(80));
                 string licensePath = SplashSettings.LicenseFilePath;
-                string displayPath = string.IsNullOrEmpty(licensePath) ? "(none — homebrew)" : Path.GetFileName(licensePath);
+                string displayPath = string.IsNullOrEmpty(licensePath) ? "(none - homebrew)" : Path.GetFileName(licensePath);
                 GUILayout.Label(displayPath, EditorStyles.miniLabel, GUILayout.ExpandWidth(true));
                 if (GUILayout.Button("Browse", EditorStyles.miniButton, GUILayout.Width(60)))
                 {
@@ -1063,9 +1063,9 @@ namespace SplashEdit.EditorCode
             }
         }
 
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
         // Memory Reports
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
 
         private void DrawMemoryReports()
         {
@@ -1079,7 +1079,7 @@ namespace SplashEdit.EditorCode
                 GUILayout.Label($"Scene: {report.sceneName}", PSXEditorStyles.SectionHeader);
                 EditorGUILayout.Space(4);
 
-                // Main RAM bar — segmented: OT | Bump | Scene | Heap
+                // Main RAM bar - segmented: OT | Bump | Scene | Heap
                 DrawSegmentedMemoryBar("Main RAM",
                     SceneMemoryReport.USABLE_RAM,
                     report.RamPercent,
@@ -1264,12 +1264,12 @@ namespace SplashEdit.EditorCode
             return $"{bytes / (1024f * 1024f):F2} MB";
         }
 
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
         // Pipeline Actions
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
 
         /// <summary>
-        /// The main pipeline: Validate → Export all scenes → Compile → Launch.
+        /// The main pipeline: Validate -> Export all scenes -> Compile -> Launch.
         /// </summary>
         public async void BuildAndRun()
         {
@@ -1367,7 +1367,7 @@ namespace SplashEdit.EditorCode
             }
         }
 
-        // ───── Step 1: Validate ─────
+        // ----- Step 1: Validate -----
 
         private bool ValidateToolchain()
         {
@@ -1410,7 +1410,7 @@ namespace SplashEdit.EditorCode
             return true;
         }
 
-        // ───── Step 2: Export ─────
+        // ----- Step 2: Export -----
 
         /// <summary>
         /// Exports all scenes in the scene list to splashpack files in PSXBuild/.
@@ -1455,7 +1455,7 @@ namespace SplashEdit.EditorCode
                     string outputPath = SplashBuildPaths.GetSceneSplashpackPath(i, scene.name);
                     string loaderPath = null;
                     exporter.ExportToPath(outputPath);
-                    Log($"Exported '{scene.name}' → {Path.GetFileName(outputPath)}", LogType.Log);
+                    Log($"Exported '{scene.name}' -> {Path.GetFileName(outputPath)}", LogType.Log);
 
                     // Export loading screen if assigned
                     if (exporter.LoadingScreenPrefab != null)
@@ -1535,7 +1535,7 @@ namespace SplashEdit.EditorCode
                 if (File.Exists(cachedPath))
                 {
                     File.Copy(cachedPath, outputPath, true);
-                    Log($"Loading screen for '{sceneName}' → {Path.GetFileName(outputPath)} (deduped from {Path.GetFileName(cachedPath)})", LogType.Log);
+                    Log($"Loading screen for '{sceneName}' -> {Path.GetFileName(outputPath)} (deduped from {Path.GetFileName(cachedPath)})", LogType.Log);
                     return;
                 }
             }
@@ -1586,7 +1586,7 @@ namespace SplashEdit.EditorCode
                     (msg, type) => Log(msg, type));
                 if (ok)
                 {
-                    Log($"Loading screen for '{sceneName}' → {Path.GetFileName(outputPath)}", LogType.Log);
+                    Log($"Loading screen for '{sceneName}' -> {Path.GetFileName(outputPath)}", LogType.Log);
                     if (!string.IsNullOrEmpty(guid))
                         _loaderPackCache[guid] = outputPath;
                 }
@@ -1623,7 +1623,7 @@ namespace SplashEdit.EditorCode
             Log("Wrote scene manifest.", LogType.Log);
         }
 
-        // ───── Lua bytecode compilation ─────
+        // ----- Lua bytecode compilation -----
 
         /// <summary>
         /// Scan all scenes in the scene list and collect unique Lua source files.
@@ -1907,14 +1907,20 @@ namespace SplashEdit.EditorCode
         /// </summary>
         private async Task<bool> BuildLuacPsxAsync(string luacDir)
         {
+            if (!ShortPath.TryResolveForMake(luacDir, out string luacWorkDir, out string pathError))
+            {
+                Log(pathError, LogType.Error);
+                return false;
+            }
+
             int jobCount = Math.Max(1, SystemInfo.processorCount - 1);
             string makeCmd = $"make -j{jobCount}";
 
             var psi = new ProcessStartInfo
             {
                 FileName = Application.platform == RuntimePlatform.WindowsEditor ? "cmd.exe" : "/bin/bash",
-                Arguments = WrapCommandForMacOS(luacDir, makeCmd),
-                WorkingDirectory = luacDir,
+                Arguments = WrapCommandForMacOS(luacWorkDir, makeCmd),
+                WorkingDirectory = luacWorkDir,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
@@ -1960,7 +1966,7 @@ namespace SplashEdit.EditorCode
             }
         }
 
-        // ───── Step 3: Compile ─────
+        // ----- Step 3: Compile -----
 
         private async void CompileOnly()
         {
@@ -1990,6 +1996,12 @@ namespace SplashEdit.EditorCode
             if (string.IsNullOrEmpty(nativeDir))
             {
                 Log("Native project directory not set.", LogType.Error);
+                return false;
+            }
+
+            if (!ShortPath.TryResolveForMake(nativeDir, out string nativeWorkDir, out string pathError))
+            {
+                Log(pathError, LogType.Error);
                 return false;
             }
 
@@ -2029,8 +2041,8 @@ namespace SplashEdit.EditorCode
             var psi = new ProcessStartInfo
             {
                 FileName = Application.platform == RuntimePlatform.WindowsEditor ? "cmd.exe" : "/bin/bash",
-                Arguments = WrapCommandForMacOS(nativeDir, makeCmd),
-                WorkingDirectory = nativeDir,
+                Arguments = WrapCommandForMacOS(nativeWorkDir, makeCmd),
+                WorkingDirectory = nativeWorkDir,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
@@ -2126,7 +2138,7 @@ namespace SplashEdit.EditorCode
             return null;
         }
 
-        // ───── Step 4: Launch ─────
+        // ----- Step 4: Launch -----
 
         private void Launch()
         {
@@ -2222,7 +2234,7 @@ namespace SplashEdit.EditorCode
             // Stop any previous run (emulator or PCdrv) without clearing the console
             StopAllQuiet();
 
-            // Upload the exe with debug hooks (DEBG → SEXE on the same port).
+            // Upload the exe with debug hooks (DEBG -> SEXE on the same port).
             // DEBG installs kernel-resident break handlers BEFORE the exe auto-starts.
             // The returned port stays open so PCDrv monitoring can begin immediately.
             Log($"Uploading to {port}...", LogType.Log);
@@ -2234,7 +2246,7 @@ namespace SplashEdit.EditorCode
                 return;
             }
 
-            // Start PCdrv host on the same open port — no re-open, no DEBG/CONT needed
+            // Start PCdrv host on the same open port - no re-open, no DEBG/CONT needed
             try
             {
                 _pcdrvHost = new PCdrvSerialHost(port, baud, SplashBuildPaths.BuildOutputDir,
@@ -2252,7 +2264,7 @@ namespace SplashEdit.EditorCode
             }
         }
 
-        // ───── ISO Build ─────
+        // ----- ISO Build -----
 
         private void BuildAndLaunchISO()
         {
@@ -2299,7 +2311,7 @@ namespace SplashEdit.EditorCode
                 return;
             }
 
-            // Step 3: Delete existing .bin/.cue — mkpsxiso won't overwrite them
+            // Step 3: Delete existing .bin/.cue - mkpsxiso won't overwrite them
             try
             {
                 if (File.Exists(outputBin)) File.Delete(outputBin);
@@ -2360,10 +2372,10 @@ namespace SplashEdit.EditorCode
             {
                 string cnfPath = SplashBuildPaths.SystemCnfPath;
 
-                // The executable name on disc — no extension, max 12 chars
+                // The executable name on disc - no extension, max 12 chars
                 string exeName = GetISOExeName();
 
-                // SYSTEM.CNF content — the BIOS reads this to launch the executable.
+                // SYSTEM.CNF content - the BIOS reads this to launch the executable.
                 // BOOT: path to the executable on disc (cdrom:\path;1)
                 // TCB: number of thread control blocks (4 is standard)
                 // EVENT: number of event control blocks (10 is standard)
@@ -2423,13 +2435,13 @@ namespace SplashEdit.EditorCode
 
                 xml.AppendLine("    <directory_tree>");
 
-                // SYSTEM.CNF — the BIOS locates this by scanning only the first
+                // SYSTEM.CNF - the BIOS locates this by scanning only the first
                 // sector of the root directory, so the root must stay small enough
                 // that SYSTEM.CNF's record fits there (see the SCENES/ dir below).
                 string cnfPath = SplashBuildPaths.SystemCnfPath;
                 xml.AppendLine($"      <file name=\"SYSTEM.CNF\" source=\"{EscapeXml(cnfPath)}\"/>");
 
-                // The executable — renamed to match what SYSTEM.CNF points to
+                // The executable - renamed to match what SYSTEM.CNF points to
                 string exePath = SplashBuildPaths.CompiledExePath;
                 string isoExeName = GetISOExeName();
                 xml.AppendLine($"      <file name=\"{isoExeName}\" source=\"{EscapeXml(exePath)}\"/>");
@@ -2449,18 +2461,18 @@ namespace SplashEdit.EditorCode
                 //
                 //  1. Boot: the BIOS boot ROM only scans the *first* 2048-byte
                 //     sector of the ROOT directory when looking for SYSTEM.CNF.
-                //     A flat root with many scenes grows past one sector and —
-                //     because ISO9660 sorts entries alphabetically — "SYSTEM.CNF"
+                //     A flat root with many scenes grows past one sector and -
+                //     because ISO9660 sorts entries alphabetically - "SYSTEM.CNF"
                 //     (which sorts after every "SCENE_*") spills into the second
                 //     sector, becomes invisible, and the console falls back to
                 //     cdrom:\PSX.EXE;1 (black screen, no boot).
                 //
                 //  2. Runtime: psyqo's ISO9660Parser caches one directory sector
                 //     at a time. Any single directory that spans MORE than one
-                //     sector forces its multi-sector "continuation" read — it reads
+                //     sector forces its multi-sector "continuation" read - it reads
                 //     directory sector N, then from that read's completion callback
                 //     immediately reads the physically-adjacent sector N+1. That
-                //     READN→PAUSE→immediate-adjacent-READN pattern desyncs the CD
+                //     READN->PAUSE->immediate-adjacent-READN pattern desyncs the CD
                 //     drive and aborts ("ReadSectorsAction got CDROM acknowledge in
                 //     wrong state"). A single shared SCENES/ folder with all files
                 //     is 2+ sectors and hits this; per-scene folders never do.
@@ -2548,7 +2560,7 @@ namespace SplashEdit.EditorCode
         }
 
         /// <summary>
-        /// Stops everything (emulator, PCdrv host, console reader) — used by the STOP button.
+        /// Stops everything (emulator, PCdrv host, console reader) - used by the STOP button.
         /// </summary>
         private void StopAll()
         {
@@ -2601,9 +2613,9 @@ namespace SplashEdit.EditorCode
             }
         }
 
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
         // Toolchain Detection & Install
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
 
         private static string WrapCommandForMacOS(string dir, string makeCmd)
         {
@@ -2784,7 +2796,7 @@ namespace SplashEdit.EditorCode
             }
         }
 
-        // ───── Release fetching & management ─────
+        // ----- Release fetching & management -----
 
         private async void FetchGitHubReleases()
         {
@@ -2801,7 +2813,7 @@ namespace SplashEdit.EditorCode
                         {
                             string label = r.TagName;
                             if (!string.IsNullOrEmpty(r.Name) && r.Name != r.TagName)
-                                label += $" — {r.Name}";
+                                label += $" - {r.Name}";
                             if (r.IsPrerelease)
                                 label += " (pre-release)";
                             return label;
@@ -2838,7 +2850,7 @@ namespace SplashEdit.EditorCode
             _currentTag = PSXSplashInstaller.GetCurrentTag() ?? "";
         }
 
-        // ───── Native Project Clone/Switch ─────
+        // ----- Native Project Clone/Switch -----
 
         private async void CloneNativeProject()
         {
@@ -2872,7 +2884,7 @@ namespace SplashEdit.EditorCode
                 else
                 {
                     Log("Download failed. Check console for errors.", LogType.Error);
-                    _nativeInstallStatus = "Download failed — check console for details.";
+                    _nativeInstallStatus = "Download failed - check console for details.";
                 }
             }
             catch (Exception ex)
@@ -2924,7 +2936,7 @@ namespace SplashEdit.EditorCode
                 else
                 {
                     Log($"Failed to switch to {tag}.", LogType.Error);
-                    _nativeInstallStatus = "Switch failed — check console for details.";
+                    _nativeInstallStatus = "Switch failed - check console for details.";
                 }
             }
             catch (Exception ex)
@@ -2939,9 +2951,9 @@ namespace SplashEdit.EditorCode
             }
         }
 
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
         // Scene List Persistence (EditorPrefs)
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
 
         private void LoadSceneList()
         {
@@ -3038,9 +3050,9 @@ namespace SplashEdit.EditorCode
             }
         }
 
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
         // Music List Persistence (EditorPrefs)
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
 
         private void LoadMusicList()
         {
@@ -3127,9 +3139,9 @@ namespace SplashEdit.EditorCode
         }
 
 
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
         // Utilities
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
 
         private static void Log(string message, LogType type)
         {

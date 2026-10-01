@@ -10,7 +10,7 @@ namespace SplashEdit.EditorCode
     /// <summary>
     /// Uploads a .ps-exe to a PS1 running Unirom 8 via serial.
     /// Implements the NOTPSXSerial / Unirom protocol:
-    ///   Challenge/Response handshake → header → metadata → chunked data with checksums.
+    ///   Challenge/Response handshake -> header -> metadata -> chunked data with checksums.
     /// Reference: https://github.com/JonathanDotCel/NOTPSXSerial
     /// </summary>
     public static class UniromUploader
@@ -22,7 +22,7 @@ namespace SplashEdit.EditorCode
         private const int HEADER_SIZE = 0x800; // 2048
         private const int SERIAL_TIMEOUT_MS = 5000;
 
-        // Protocol version — negotiated during handshake
+        // Protocol version - negotiated during handshake
         private static int _protocolVersion = 1;
 
         /// <summary>
@@ -42,8 +42,8 @@ namespace SplashEdit.EditorCode
     /// Uploads a .ps-exe with Unirom debug hooks installed, using SBIN+JUMP
     /// instead of SEXE to avoid BIOS Exec() clobbering the debug handler.
     ///
-    /// Flow: DEBG (install kernel-resident debug hooks) → SBIN (raw binary to address)
-    /// → JUMP (start execution at entry point). This bypasses BIOS Exec() entirely,
+    /// Flow: DEBG (install kernel-resident debug hooks) -> SBIN (raw binary to address)
+    /// -> JUMP (start execution at entry point). This bypasses BIOS Exec() entirely,
     /// so the exception vector table patched by DEBG survives into the running program.
     ///
     /// Returns the open SerialPort for the caller to use for PCDrv monitoring.
@@ -104,7 +104,7 @@ namespace SplashEdit.EditorCode
                 while (port.BytesToRead > 0)
                     port.ReadByte();
 
-                // ── Step 0 (PCDrv only): Install debug hooks while Unirom is still in command mode ──
+                // -- Step 0 (PCDrv only): Install debug hooks while Unirom is still in command mode --
                 if (installDebugHooks)
                 {
                     log?.Invoke("Installing debug hooks (DEBG)...");
@@ -122,7 +122,7 @@ namespace SplashEdit.EditorCode
                         port.ReadByte();
                 }
 
-                // ── Step 1: Challenge/Response handshake ──
+                // -- Step 1: Challenge/Response handshake --
                 log?.Invoke("Sending SEXE challenge...");
                 if (!ChallengeResponse(port, CHALLENGE_SEND_EXE, RESPONSE_OK, log))
                 {
@@ -132,19 +132,19 @@ namespace SplashEdit.EditorCode
                 }
                 log?.Invoke($"Unirom responded (protocol V{_protocolVersion}). Starting transfer...");
 
-                // ── Step 2: Calculate checksum (skip first 0x800 header sector) ──
+                // -- Step 2: Calculate checksum (skip first 0x800 header sector) --
                 uint checksum = CalculateChecksum(exeData, skipFirstSector: true);
 
-                // ── Step 3: Send the 2048-byte header sector ──
+                // -- Step 3: Send the 2048-byte header sector --
                 port.Write(exeData, 0, HEADER_SIZE);
 
-                // ── Step 4: Send metadata ──
+                // -- Step 4: Send metadata --
                 port.Write(exeData, 0x10, 4);  // Jump/PC address
                 port.Write(exeData, 0x18, 4);  // Base/write address
                 port.Write(BitConverter.GetBytes(exeData.Length - HEADER_SIZE), 0, 4);  // Data length
                 port.Write(BitConverter.GetBytes(checksum), 0, 4);  // Checksum
 
-                // ── Step 5: Send data chunks (skip first sector) ──
+                // -- Step 5: Send data chunks (skip first sector) --
                 if (!WriteChunked(port, exeData, skipFirstSector: true, log))
                 {
                     log?.Invoke("Data transfer failed.");
@@ -176,9 +176,9 @@ namespace SplashEdit.EditorCode
         /// the BIOS. This preserves the break-instruction handler that PCDrv depends on.
         ///
         /// Protocol:
-        ///   1. DEBG → OKAY: Install kernel-resident SIO debug stub
-        ///   2. SBIN → OKAY: addr(4 LE) + len(4 LE) + checksum(4 LE) + raw program data
-        ///   3. JUMP → OKAY: addr(4 LE) — jump to entry point
+        ///   1. DEBG -> OKAY: Install kernel-resident SIO debug stub
+        ///   2. SBIN -> OKAY: addr(4 LE) + len(4 LE) + checksum(4 LE) + raw program data
+        ///   3. JUMP -> OKAY: addr(4 LE) - jump to entry point
         /// </summary>
         private static SerialPort DoUploadSBIN(string portName, int baudRate, string exePath, Action<string> log)
         {
@@ -249,7 +249,7 @@ namespace SplashEdit.EditorCode
                 while (port.BytesToRead > 0)
                     port.ReadByte();
 
-                // ── Step 1: DEBG — Install kernel-resident debug hooks ──
+                // -- Step 1: DEBG - Install kernel-resident debug hooks --
                 log?.Invoke("Installing debug hooks (DEBG)...");
                 if (!ChallengeResponse(port, "DEBG", "OKAY", log))
                 {
@@ -259,12 +259,12 @@ namespace SplashEdit.EditorCode
                 }
                 log?.Invoke("Debug hooks installed.");
 
-                // Drain + settle — Unirom may send extra bytes after DEBG
+                // Drain + settle - Unirom may send extra bytes after DEBG
                 Thread.Sleep(100);
                 while (port.BytesToRead > 0)
                     port.ReadByte();
 
-                // ── Step 2: SBIN — Upload raw program data to target address ──
+                // -- Step 2: SBIN - Upload raw program data to target address --
                 log?.Invoke($"Sending SBIN to 0x{destAddr:X8} ({progData.Length} bytes)...");
                 if (!ChallengeResponse(port, "SBIN", "OKAY", log))
                 {
@@ -295,7 +295,7 @@ namespace SplashEdit.EditorCode
                 while (port.BytesToRead > 0)
                     port.ReadByte();
 
-                // ── Step 3: JUMP — Start execution at entry point ──
+                // -- Step 3: JUMP - Start execution at entry point --
                 log?.Invoke($"Sending JUMP to 0x{entryPoint:X8}...");
                 if (!ChallengeResponse(port, "JUMP", "OKAY", log))
                 {
@@ -321,9 +321,9 @@ namespace SplashEdit.EditorCode
             }
         }
 
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
         // Challenge / Response with protocol negotiation
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
 
         private static bool ChallengeResponse(SerialPort port, string challenge, string expectedResponse, Action<string> log)
         {
@@ -352,7 +352,7 @@ namespace SplashEdit.EditorCode
                         buffer = buffer.Substring(buffer.Length - 4);
 
                     // Protocol V3 upgrade (DJB2 checksums)
-                    // Always respond — Unirom re-offers V2/V3 for each command,
+                    // Always respond - Unirom re-offers V2/V3 for each command,
                     // and our protocolVersion may already be >1 from a prior DEBG exchange.
                     if (buffer == "OKV3")
                     {
@@ -395,9 +395,9 @@ namespace SplashEdit.EditorCode
             return false;
         }
 
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
         // Chunked data transfer with per-chunk checksum verification
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
 
         private static bool WriteChunked(SerialPort port, byte[] data, bool skipFirstSector, Action<string> log)
         {
@@ -441,7 +441,7 @@ namespace SplashEdit.EditorCode
                         return false;
                     }
                     if (retry)
-                        continue; // Don't advance offset — resend this chunk
+                        continue; // Don't advance offset - resend this chunk
                 }
 
                 offset += thisChunk;
@@ -505,7 +505,7 @@ namespace SplashEdit.EditorCode
 
                     if (cmdBuffer == "ERR!")
                     {
-                        log?.Invoke("Checksum error — retrying chunk...");
+                        log?.Invoke("Checksum error - retrying chunk...");
                         retry = true;
                         return true;
                     }
@@ -520,9 +520,9 @@ namespace SplashEdit.EditorCode
             return false;
         }
 
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
         // Checksum calculation
-        // ═══════════════════════════════════════════════════════════════
+        // ---------------------------------------------------------------
 
         private static uint CalculateChecksum(byte[] data, bool skipFirstSector)
         {

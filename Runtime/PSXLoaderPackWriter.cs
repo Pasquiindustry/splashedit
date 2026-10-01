@@ -14,15 +14,15 @@ namespace SplashEdit.RuntimeCode
     ///     uint16    version    = 2
     ///     uint8     fontCount
     ///     uint8     canvasCount (always 1)
-    ///     uint16    resW       — target PS1 resolution width
-    ///     uint16    resH       — target PS1 resolution height
-    ///     uint8     atlasCount — number of texture atlases
-    ///     uint8     clutCount  — number of CLUTs
-    ///     uint32    tableOffset — offset to UI table (font descs + canvas data)
+    ///     uint16    resW       - target PS1 resolution width
+    ///     uint16    resH       - target PS1 resolution height
+    ///     uint8     atlasCount - number of texture atlases
+    ///     uint8     clutCount  - number of CLUTs
+    ///     uint32    tableOffset - offset to UI table (font descs + canvas data)
     ///
     ///   After header (at offset 16):
-    ///     Atlas headers (12 bytes each × atlasCount)
-    ///     CLUT headers  (12 bytes each × clutCount)
+    ///     Atlas headers (12 bytes each x atlasCount)
+    ///     CLUT headers  (12 bytes each x clutCount)
     ///     Atlas pixel data (referenced by offsets in atlas headers)
     ///     CLUT pixel data  (referenced by offsets in CLUT headers)
     ///
@@ -86,7 +86,7 @@ namespace SplashEdit.RuntimeCode
                                 clutCount++;
                 }
 
-                // ── Header (16 bytes) ──
+                // -- Header (16 bytes) --
                 writer.Write((byte)'L');
                 writer.Write((byte)'P');
                 writer.Write(LOADER_PACK_VERSION);
@@ -99,7 +99,7 @@ namespace SplashEdit.RuntimeCode
                 long tableOffsetPos = writer.BaseStream.Position;
                 writer.Write((uint)0); // tableOffset placeholder
 
-                // ── Atlas headers (12 bytes each) ──
+                // -- Atlas headers (12 bytes each) --
                 List<long> atlasOffsetPlaceholders = new List<long>();
                 if (atlases != null)
                 {
@@ -114,7 +114,7 @@ namespace SplashEdit.RuntimeCode
                     }
                 }
 
-                // ── CLUT headers (12 bytes each) ──
+                // -- CLUT headers (12 bytes each) --
                 List<long> clutOffsetPlaceholders = new List<long>();
                 if (atlases != null)
                 {
@@ -135,7 +135,7 @@ namespace SplashEdit.RuntimeCode
                     }
                 }
 
-                // ── Atlas pixel data ──
+                // -- Atlas pixel data --
                 int atlasIdx = 0;
                 if (atlases != null)
                 {
@@ -159,7 +159,7 @@ namespace SplashEdit.RuntimeCode
                     }
                 }
 
-                // ── CLUT pixel data ──
+                // -- CLUT pixel data --
                 int clutIdx = 0;
                 if (atlases != null)
                 {
@@ -187,7 +187,7 @@ namespace SplashEdit.RuntimeCode
                     }
                 }
 
-                // ── Font pixel data (written BEFORE the UI table, alongside atlas/CLUT data) ──
+                // -- Font pixel data (written BEFORE the UI table, alongside atlas/CLUT data) --
                 // The C++ parser expects canvas descriptors immediately after font descriptors
                 // (font pixel data is at absolute offsets, not inline). Write pixel data here
                 // so it doesn't sit between font descriptors and canvas descriptors.
@@ -211,11 +211,11 @@ namespace SplashEdit.RuntimeCode
                     }
                 }
 
-                // ── UI table (same format as splashpack UI section) ──
+                // -- UI table (same format as splashpack UI section) --
                 AlignToFourBytes(writer);
                 long uiTableStart = writer.BaseStream.Position;
 
-                // ── Font descriptors (112 bytes each) ──
+                // -- Font descriptors (112 bytes each) --
                 if (fonts != null)
                 {
                     for (int fi = 0; fi < fonts.Length; fi++)
@@ -238,9 +238,9 @@ namespace SplashEdit.RuntimeCode
                 }
 
                 // Canvas descriptors now follow immediately after font descriptors
-                // (no font pixel data in between — it was written above).
+                // (no font pixel data in between - it was written above).
 
-                // ── Canvas descriptor (12 bytes) ──
+                // -- Canvas descriptor (12 bytes) --
                 // Must align here: the C++ parser aligns fontDataEnd to 4 bytes
                 // when skipping past font pixel data to find the canvas descriptor.
                 AlignToFourBytes(writer);
@@ -259,7 +259,7 @@ namespace SplashEdit.RuntimeCode
                 long canvasNameOffsetPos = writer.BaseStream.Position;
                 writer.Write((uint)0); // nameOffset placeholder
 
-                // ── Element data (48 bytes per element) ──
+                // -- Element data (48 bytes per element) --
                 AlignToFourBytes(writer);
                 long elemDataStart = writer.BaseStream.Position;
 
@@ -351,7 +351,7 @@ namespace SplashEdit.RuntimeCode
                     textContents.Add("__NAME__" + eName);
                 }
 
-                // ── String data (text content + element names) ──
+                // -- String data (text content + element names) --
                 for (int si = 0; si < textOffsetPositions.Count; si++)
                 {
                     string content = textContents[si];
@@ -373,7 +373,7 @@ namespace SplashEdit.RuntimeCode
                     writer.Seek((int)cur, SeekOrigin.Begin);
                 }
 
-                // ── Canvas name ──
+                // -- Canvas name --
                 {
                     AlignToFourBytes(writer);
                     long namePos = writer.BaseStream.Position;
@@ -387,7 +387,7 @@ namespace SplashEdit.RuntimeCode
                     writer.Seek((int)cur, SeekOrigin.Begin);
                 }
 
-                // ── Backfill header table offset ──
+                // -- Backfill header table offset --
                 {
                     long cur = writer.BaseStream.Position;
                     writer.Seek((int)tableOffsetPos, SeekOrigin.Begin);

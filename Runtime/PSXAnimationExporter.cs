@@ -296,7 +296,7 @@ namespace SplashEdit.RuntimeCode
                     }
                 }
 
-                // ── Skin anim events (v19) ──
+                // -- Skin anim events (v19) --
                 AlignToFourBytes(writer);
                 long skinAnimEventsStart = writer.BaseStream.Position;
 

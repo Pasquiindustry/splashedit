@@ -402,6 +402,44 @@ namespace SplashEdit.RuntimeCode
                     tImporter.isReadable = isReadable;
                     needReimport = true;
                 }
+
+                // Pixel art must reach the quantizer EXACTLY as authored.
+                //
+                // npotScale is the one that silently ruins sprite sheets: Unity
+                // defaults to scaling a non-power-of-two texture to the nearest
+                // POT, so a 64x96 sheet is resampled to 64x128 and every 16px cell
+                // row slides out of the grid - which reads as "the bottom of my
+                // sprite is cut off" rather than as an import setting. Compression
+                // and mipmaps are just as fatal at this size: both invent colours
+                // the 4-bit palette then has to spend entries on.
+                if (tImporter.npotScale != TextureImporterNPOTScale.None)
+                {
+                    tImporter.npotScale = TextureImporterNPOTScale.None;
+                    needReimport = true;
+                }
+                if (tImporter.textureCompression != TextureImporterCompression.Uncompressed)
+                {
+                    tImporter.textureCompression = TextureImporterCompression.Uncompressed;
+                    needReimport = true;
+                }
+                if (tImporter.mipmapEnabled)
+                {
+                    tImporter.mipmapEnabled = false;
+                    needReimport = true;
+                }
+                if (tImporter.filterMode != FilterMode.Point)
+                {
+                    tImporter.filterMode = FilterMode.Point;
+                    needReimport = true;
+                }
+                // Cutout sprites rely on alpha 0 becoming the transparent palette
+                // entry; without this Unity can hand us premultiplied edges.
+                if (!tImporter.alphaIsTransparency)
+                {
+                    tImporter.alphaIsTransparency = true;
+                    needReimport = true;
+                }
+
                 if (needReimport)
                 {
                     AssetDatabase.ImportAsset(assetPath);

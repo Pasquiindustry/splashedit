@@ -137,7 +137,7 @@ namespace SplashEdit.EditorCode
                     // brew-install-path is needed because Homebrew 4.6.4+ removed
                     // support for installing from local .rb formula files directly.
                     // The resulting "nikitabobko/local-tap" is a LOCAL directory on
-                    // the user's machine, not a GitHub repo — don't reference it
+                    // the user's machine, not a GitHub repo - don't reference it
                     // in install instructions.
                     bool hasBrew = ToolchainChecker.IsToolAvailable("brew");
                     string installScript =
@@ -158,7 +158,7 @@ namespace SplashEdit.EditorCode
                             "    pcsx-redux/main/tools/macos-mips/mipsel-none-elf-gcc.rb\n" +
                             "  brew install-path ./mipsel-none-elf-binutils.rb\n" +
                             "  brew install-path ./mipsel-none-elf-gcc.rb\n\n" +
-                            "Builds GCC from source — expect 15-30 minutes.\n" +
+                            "Builds GCC from source - expect 15-30 minutes.\n" +
                             "Then click Refresh in the Dependencies tab.",
                             "OK");
                         GUIUtility.systemCopyBuffer = installScript;
@@ -168,15 +168,15 @@ namespace SplashEdit.EditorCode
                         EditorUtility.DisplayDialog(
                             "macOS: Install Homebrew + MIPS Cross-Compiler",
                             "Homebrew (the macOS package manager) is required.\n\n" +
-                            "Step 1 — Install Homebrew:\n" +
+                            "Step 1 - Install Homebrew:\n" +
                             "  /bin/bash -c \"$(curl -fsSL\n" +
                             "    https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\"\n\n" +
-                            "Step 2 — Install the MIPS compiler (paste into Terminal):\n" +
+                            "Step 2 - Install the MIPS compiler (paste into Terminal):\n" +
                             "  brew install nikitabobko/tap/brew-install-path\n" +
                             "  curl -LO <grumpycoders pcsx-redux formula URLs>\n" +
                             "  brew install-path ./mipsel-none-elf-binutils.rb\n" +
                             "  brew install-path ./mipsel-none-elf-gcc.rb\n\n" +
-                            "Step 2 builds GCC from source — expect 15-30 minutes.\n" +
+                            "Step 2 builds GCC from source - expect 15-30 minutes.\n" +
                             "The Homebrew install command has been copied to your clipboard.\n" +
                             "Then click Refresh in the Dependencies tab.",
                             "OK");

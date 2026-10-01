@@ -112,6 +112,9 @@ namespace SplashEdit.RuntimeCode
         public ushort ClutPackingX;
         public ushort ClutPackingY;
 
+        /// <summary>Whether this was quantized with cutout transparency.</summary>
+        public bool Cutout { get; private set; }
+
         private int _maxColors;
 
         public VRAMPixel[,] ImageData { get; set; }
@@ -122,7 +125,19 @@ namespace SplashEdit.RuntimeCode
         /// <param name="inputTexture">The input Texture2D.</param>
         /// <param name="bitDepth">The desired bit depth for the PSX texture.</param>
         /// <returns>The created PSXTexture2D.</returns>
-        public static PSXTexture2D CreateFromTexture2D(Texture2D inputTexture, PSXBPP bitDepth)
+        /// <param name="cutout">
+        /// Keep the source's transparency. Paletted textures otherwise DISCARD
+        /// alpha entirely - the quantizer only ever looked at RGB, and any
+        /// palette entry that landed on pure black was deliberately bumped to
+        /// opaque near-black. Fine for a UI panel, which is a rectangle; fatal
+        /// for a sprite, which is a character in a box.
+        ///
+        /// With this on, palette entry 0 is the PS1's transparent colour
+        /// (0x0000) and every pixel below the alpha threshold maps to it. Costs
+        /// one palette entry. At 16bpp those pixels are written as 0x0000
+        /// directly.
+        /// </param>
+        public static PSXTexture2D CreateFromTexture2D(Texture2D inputTexture, PSXBPP bitDepth, bool cutout = false)
         {
             PSXTexture2D psxTex = new PSXTexture2D();
             Utils.SetTextureImporterFormat(inputTexture, true);
@@ -134,6 +149,7 @@ namespace SplashEdit.RuntimeCode
             psxTex.Height = inputTexture.height;
 
             psxTex.BitDepth = bitDepth;
+            psxTex.Cutout = cutout;
 
 
             if (bitDepth == PSXBPP.TEX_16BIT)
@@ -148,6 +164,16 @@ namespace SplashEdit.RuntimeCode
                     for (int x = 0; x < width; x++) // Start from right column, move leftward
                     {
                         Color pixel = inputTexture.GetPixel(x, height - y - 1);
+
+                        // Cutout at 16bpp: anything below the threshold becomes the
+                        // PS1's transparent colour, the same rule the paletted path
+                        // applies through palette entry 0.
+                        if (cutout && pixel.a < TextureQuantizer.CutoutAlphaThreshold)
+                        {
+                            psxTex.ImageData[x, y] = new VRAMPixel();
+                            continue;
+                        }
+
                         VRAMPixel vramPixel = new VRAMPixel
                         {
                             R = (ushort)(pixel.r * 31),
@@ -175,7 +201,7 @@ namespace SplashEdit.RuntimeCode
 
             psxTex._maxColors = (int)Mathf.Pow(2, (int)bitDepth);
 
-            TextureQuantizer.QuantizedResult result = TextureQuantizer.Quantize(inputTexture, psxTex._maxColors);
+            TextureQuantizer.QuantizedResult result = TextureQuantizer.Quantize(inputTexture, psxTex._maxColors, cutout);
             int targetCount = 4 - (result.Palette.Count % 4);
             if (targetCount != 0)
             {
@@ -183,16 +209,22 @@ namespace SplashEdit.RuntimeCode
                 int prevCount = result.Palette.Count;
                 result.Palette.AddRange(new Vector3[targetCount]);
             }
-            
-            foreach (Vector3 color in result.Palette)
+
+            for (int i = 0; i < result.Palette.Count; i++)
             {
+                Vector3 color = result.Palette[i];
                 Color pixel = new Color(color.x, color.y, color.z);
                 VRAMPixel vramPixel = new VRAMPixel { R = (ushort)(pixel.r * 31), G = (ushort)(pixel.g * 31), B = (ushort)(pixel.b * 31) };
+
+                // On a cutout, entry 0 is MEANT to be 0x0000 - that is the whole
+                // mechanism. Bumping it here would make the sprite's background
+                // opaque and undo the work.
+                bool transparentEntry = cutout && i == 0;
 
                 // PS1: palette entry 0x0000 is transparent. Any non-transparent palette
                 // color that quantizes to pure black must be bumped to near-black (1,1,1)
                 // with bit15 set to avoid the hardware treating it as see-through.
-                if (vramPixel.Pack() == 0x0000)
+                if (!transparentEntry && vramPixel.Pack() == 0x0000)
                 {
                     vramPixel.R = 1;
                     vramPixel.G = 1;

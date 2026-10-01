@@ -5,7 +5,7 @@ namespace SplashEdit.RuntimeCode
 {
     /// <summary>
     /// A cutscene asset containing keyframed tracks and audio events.
-    /// Create via right-click → Create → PSX → Cutscene Clip.
+    /// Create via right-click -> Create -> PSX -> Cutscene Clip.
     /// Reference these assets anywhere in the project; the exporter collects
     /// all PSXCutsceneClip assets via Resources.FindObjectsOfTypeAll.
     /// </summary>

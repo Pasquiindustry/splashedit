@@ -25,12 +25,19 @@ namespace SplashEdit.EditorCode
             Color border = canvasSelected ? Color.yellow : new Color(1, 1, 0, 0.3f);
             Handles.DrawSolidRectangleWithOutline(canvasCorners, Color.clear, border);
 
-            // Draw all children in hierarchy order (first child = back, last child = front)
-            var children = canvas.GetComponentsInChildren<Transform>(true).Reverse();
+            // Hierarchy order, NOT reversed: the first child is behind and the
+            // last child is in front, which is Unity's own convention and (since
+            // UISystem::renderOT was fixed to walk its arrays backwards) the
+            // console's too. This used to be `.Reverse()` to match an engine that
+            // had the ordering-table insertion the wrong way round.
+            var children = canvas.GetComponentsInChildren<Transform>(true);
             foreach (var child in children)
             {
                 if (child == canvas.transform) continue;
                 bool childSelected = Selection.Contains(child.gameObject);
+
+                var sprite = child.GetComponent<PSXUISprite>();
+                if (sprite != null) { DrawSprite(sprite, childSelected); continue; }
 
                 var box = child.GetComponent<PSXUIBox>();
                 if (box != null) { DrawBox(box, childSelected); continue; }
@@ -133,6 +140,31 @@ namespace SplashEdit.EditorCode
                 Color fill = new Color(0.4f, 0.4f, 0.8f, selected ? 0.8f : 0.6f);
                 Handles.DrawSolidRectangleWithOutline(corners, fill, Color.cyan);
             }
+        }
+
+        /// <summary>
+        /// One cell of a sheet, in the scene view. The tint goes through
+        /// PSXScreenPreview.TexTint so a 128-grey element looks like the art
+        /// rather than half-dark - see the note there.
+        /// </summary>
+        static void DrawSprite(PSXUISprite sprite, bool selected)
+        {
+            RectTransform rt = sprite.GetComponent<RectTransform>();
+            if (rt == null) return;
+            Vector3[] corners = new Vector3[4];
+            rt.GetWorldCorners(corners);
+
+            Handles.BeginGUI();
+            Vector2 min = HandleUtility.WorldToGUIPoint(corners[1]); // top-left
+            Vector2 max = HandleUtility.WorldToGUIPoint(corners[3]); // bottom-right
+            var screenRect = new Rect(Mathf.Min(min.x, max.x), Mathf.Min(min.y, max.y),
+                                      Mathf.Abs(max.x - min.x), Mathf.Abs(max.y - min.y));
+            if (screenRect.width > 1 && screenRect.height > 1)
+                PSXScreenPreview.DrawSprite(sprite, screenRect, selected ? 1f : 0.9f);
+            Handles.EndGUI();
+
+            if (selected)
+                Handles.DrawSolidRectangleWithOutline(corners, Color.clear, Color.cyan);
         }
 
         static void DrawText(PSXUIText text, bool selected)
@@ -296,20 +328,49 @@ namespace SplashEdit.EditorCode
             // Element summary card
             PSXCanvas canvas = (PSXCanvas)target;
             int imageCount = canvas.GetComponentsInChildren<PSXUIImage>(true).Length;
+            int spriteCount = canvas.GetComponentsInChildren<PSXUISprite>(true).Length;
             int boxCount = canvas.GetComponentsInChildren<PSXUIBox>(true).Length;
             int textCount = canvas.GetComponentsInChildren<PSXUIText>(true).Length;
             int progressCount = canvas.GetComponentsInChildren<PSXUIProgressBar>(true).Length;
-            int total = imageCount + boxCount + textCount + progressCount;
+            int lineCount = canvas.GetComponentsInChildren<PSXUILine>(true).Length;
+            int total = imageCount + spriteCount + boxCount + textCount + progressCount + lineCount;
 
             PSXEditorStyles.BeginCard();
             EditorGUILayout.LabelField(
-                $"Elements: {total} total\n" +
-                $"  Images: {imageCount}  |  Boxes: {boxCount}\n" +
-                $"  Texts: {textCount}  |  Progress Bars: {progressCount}",
+                $"Elements: {total} in this canvas\n" +
+                $"  Sprites: {spriteCount}  |  Images: {imageCount}  |  Boxes: {boxCount}\n" +
+                $"  Texts: {textCount}  |  Progress Bars: {progressCount}  |  Lines: {lineCount}",
                 PSXEditorStyles.InfoBox);
 
-            if (total > 128)
-                EditorGUILayout.LabelField("PS1 UI system supports max 128 elements total across all canvases.", PSXEditorStyles.InfoBox);
+            // The pool is shared by every canvas in the scene, so this canvas's
+            // own count says nothing about whether the scene fits. Elements past
+            // the cap are dropped SILENTLY at load (uisystem.cpp clamps the count),
+            // which reads as "the bottom half of my panel did not export".
+            int sceneTotal = 0;
+            var allCanvases = FindObjectsByType<PSXCanvas>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            foreach (var c in allCanvases)
+            {
+                sceneTotal += c.GetComponentsInChildren<PSXUIImage>(true).Length
+                            + c.GetComponentsInChildren<PSXUISprite>(true).Length
+                            + c.GetComponentsInChildren<PSXUIBox>(true).Length
+                            + c.GetComponentsInChildren<PSXUIText>(true).Length
+                            + c.GetComponentsInChildren<PSXUIProgressBar>(true).Length
+                            + c.GetComponentsInChildren<PSXUILine>(true).Length;
+            }
+            EditorGUILayout.LabelField(
+                $"Scene: {sceneTotal} / {PSXUIBudget.MaxElements} elements, " +
+                $"{allCanvases.Length} / {PSXUIBudget.MaxCanvases} canvases",
+                PSXEditorStyles.InfoBox);
+
+            if (sceneTotal > PSXUIBudget.MaxElements)
+                EditorGUILayout.HelpBox(
+                    $"The scene has {sceneTotal} UI elements but the runtime pool holds " +
+                    $"{PSXUIBudget.MaxElements}. Everything past the cap is dropped at load, " +
+                    "without an error.", MessageType.Error);
+            if (allCanvases.Length > PSXUIBudget.MaxCanvases)
+                EditorGUILayout.HelpBox(
+                    $"The scene has {allCanvases.Length} canvases but the runtime pool holds " +
+                    $"{PSXUIBudget.MaxCanvases}.", MessageType.Error);
             PSXEditorStyles.EndCard();
 
             serializedObject.ApplyModifiedProperties();

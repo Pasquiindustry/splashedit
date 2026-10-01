@@ -34,7 +34,7 @@ namespace SplashEdit.RuntimeCode
         // Layout (PS1 pixel coords, already Y-inverted)
         public short X, Y, W, H;
 
-        // Anchors (8.8 fixed-point: 0=0.0, 128=0.5, 255≈1.0)
+        // Anchors (8.8 fixed-point: 0=0.0, 128=0.5, 255~1.0)
         public byte AnchorMinX, AnchorMinY;
         public byte AnchorMaxX, AnchorMaxY;
 
@@ -46,6 +46,15 @@ namespace SplashEdit.RuntimeCode
         public ushort ClutX, ClutY;
         public byte U0, V0, U1, V1;
         public byte BitDepthIndex; // 0=4bit, 1=8bit, 2=16bit
+
+        // Type-specific: Image authored from a sprite sheet (a PSXUISprite).
+        // These ride in what used to be the Image record's five padding bytes,
+        // so the record does not grow and a pack written before PSXUISprite
+        // existed reads CellW = 0, which the engine takes as "not sheet-backed"
+        // and refuses to SetFrame. Zero for a plain PSXUIImage.
+        public byte CellW, CellH;  // cell size in texels
+        public byte SheetCols;     // cells per row
+        public byte BaseU, BaseV;  // texel of cell 0 within the texture page
 
         // Type-specific: Progress
         public byte BgR, BgG, BgB;
