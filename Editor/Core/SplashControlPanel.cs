@@ -1907,14 +1907,20 @@ namespace SplashEdit.EditorCode
         /// </summary>
         private async Task<bool> BuildLuacPsxAsync(string luacDir)
         {
+            if (!ShortPath.TryResolveForMake(luacDir, out string luacWorkDir, out string pathError))
+            {
+                Log(pathError, LogType.Error);
+                return false;
+            }
+
             int jobCount = Math.Max(1, SystemInfo.processorCount - 1);
             string makeCmd = $"make -j{jobCount}";
 
             var psi = new ProcessStartInfo
             {
                 FileName = Application.platform == RuntimePlatform.WindowsEditor ? "cmd.exe" : "/bin/bash",
-                Arguments = WrapCommandForMacOS(luacDir, makeCmd),
-                WorkingDirectory = luacDir,
+                Arguments = WrapCommandForMacOS(luacWorkDir, makeCmd),
+                WorkingDirectory = luacWorkDir,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
@@ -1993,6 +1999,12 @@ namespace SplashEdit.EditorCode
                 return false;
             }
 
+            if (!ShortPath.TryResolveForMake(nativeDir, out string nativeWorkDir, out string pathError))
+            {
+                Log(pathError, LogType.Error);
+                return false;
+            }
+
             string buildArg = SplashSettings.Mode == BuildMode.Debug ? "BUILD=Debug" : "";
 
             if (SplashSettings.Target == BuildTarget.ISO)
@@ -2029,8 +2041,8 @@ namespace SplashEdit.EditorCode
             var psi = new ProcessStartInfo
             {
                 FileName = Application.platform == RuntimePlatform.WindowsEditor ? "cmd.exe" : "/bin/bash",
-                Arguments = WrapCommandForMacOS(nativeDir, makeCmd),
-                WorkingDirectory = nativeDir,
+                Arguments = WrapCommandForMacOS(nativeWorkDir, makeCmd),
+                WorkingDirectory = nativeWorkDir,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
