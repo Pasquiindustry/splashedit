@@ -90,6 +90,10 @@ namespace SplashEdit.RuntimeCode
             // Tilemap (v23). Null when the scene has no tilemap, which writes the
             // header offset as 0 - exactly what a v22 pack left there.
             public PSXTilemapData tilemap;
+
+            // Point lights (v24). Null or empty writes a v23 pack, byte for byte
+            // what this writer produced before lights existed.
+            public Light[] pointLights;
         }
 
         // --- Offset bookkeeping ---
@@ -203,12 +207,17 @@ namespace SplashEdit.RuntimeCode
                                               out spriteSheetData, out spriteAnimData);
                 }
 
+                // A scene with no point lights is written as v23, which keeps old
+                // scenes exporting byte-identical. v24 appends lightTableOffset.
+                Light[] pointLights = scene.pointLights ?? new Light[0];
+                bool hasLights = pointLights.Length > 0;
+
                 // ------------------------------------------------------
-                // Header (144 bytes - splashpack v23)
+                // Header (144 bytes - splashpack v23, 148 bytes - v24)
                 // ------------------------------------------------------
                 writer.Write('S');
                 writer.Write('P');
-                writer.Write((ushort)23);
+                writer.Write((ushort)(hasLights ? 24 : 23));
                 writer.Write((ushort)luaFiles.Count);
                 writer.Write((ushort)scene.exporters.Length);
                 writer.Write((ushort)scene.atlases.Length);
@@ -356,6 +365,10 @@ namespace SplashEdit.RuntimeCode
                 // backfilled after the tilemap chunk is written (0 if no tilemap).
                 long tilemapTableOffsetPos = writer.BaseStream.Position;
                 writer.Write((uint)0);                          // tilemapTableOffset placeholder
+                // v24: point light table offset, backfilled after the light chunk.
+                long lightTableOffsetPos = writer.BaseStream.Position;
+                if (hasLights)
+                    writer.Write((uint)0);                      // lightTableOffset placeholder
 
                 // ------------------------------------------------------
                 // Lua file metadata
@@ -416,10 +429,12 @@ namespace SplashEdit.RuntimeCode
                     else
                         writer.Write((short)-1);
 
-                    // Bitfield (LSB = isActive, bit 4 = isSkinned)
+                    // Bitfield (LSB = isActive, bit 4 = isSkinned, bit 5 = dynamicLit)
                     int flagsAsInt = exporter.IsActive ? 1 : 0;
                     if (skinnedProxySet.Contains(exporter))
                         flagsAsInt |= 0x10; // bit 4 = isSkinned
+                    if (hasLights && exporter.IsDynamicLit)
+                        flagsAsInt |= 0x20; // bit 5 = dynamicLit
                     writer.Write(flagsAsInt);
 
                     // Component indices (8 bytes)
@@ -1285,6 +1300,48 @@ namespace SplashEdit.RuntimeCode
 
                     log?.Invoke($"Tilemap {tm.Width}x{tm.Height} tile={tm.TileW}x{tm.TileH} " +
                                 $"sheet={tm.TilesetSheet} objects={tm.Objects.Count} written.", LogType.Log);
+                }
+
+                // ------------------------------------------------------
+                // Point lights (v24): uint16 count, uint16 pad, then one
+                // SPLASHPACKPointLight (28 bytes) each, then their names.
+                // ------------------------------------------------------
+                if (hasLights)
+                {
+                    AlignToFourBytes(writer);
+                    long lightTableStart = writer.BaseStream.Position;
+                    writer.Write((ushort)pointLights.Length);
+                    writer.Write((ushort)0);
+
+                    long[] lightNamePos = new long[pointLights.Length];
+                    for (int li = 0; li < pointLights.Length; li++)
+                    {
+                        Light l = pointLights[li];
+                        // SPLASHPACKPointLight record
+                        Vector3 lp = l.transform.position;
+                        writer.Write((int)PSXTrig.ConvertWorldToFixed12(lp.x / gte));
+                        writer.Write((int)PSXTrig.ConvertWorldToFixed12(-lp.y / gte));
+                        writer.Write((int)PSXTrig.ConvertWorldToFixed12(lp.z / gte));
+                        writer.Write((int)PSXTrig.ConvertWorldToFixed12(l.range / gte));
+                        writer.Write((ushort)Mathf.Clamp(Mathf.RoundToInt(l.intensity * 4096f), 0, 65535));
+                        writer.Write((byte)Utils.ColorUnityToPSX(l.color.r));
+                        writer.Write((byte)Utils.ColorUnityToPSX(l.color.g));
+                        writer.Write((byte)Utils.ColorUnityToPSX(l.color.b));
+                        writer.Write((byte)(l.enabled ? 1 : 0)); // flags: bit 0 = enabled
+                        writer.Write((ushort)0);                 // pad
+                        lightNamePos[li] = writer.BaseStream.Position;
+                        writer.Write((uint)0);                   // nameOffset placeholder
+                        // end SPLASHPACKPointLight
+                    }
+                    for (int li = 0; li < pointLights.Length; li++)
+                        WriteNameAndBackfill(writer, pointLights[li].name, lightNamePos[li]);
+
+                    long curPos = writer.BaseStream.Position;
+                    writer.Seek((int)lightTableOffsetPos, SeekOrigin.Begin);
+                    writer.Write((uint)lightTableStart);
+                    writer.Seek((int)curPos, SeekOrigin.Begin);
+
+                    log?.Invoke($"{pointLights.Length} point light(s) written.", LogType.Log);
                 }
 
                 // ------------------------------------------------------
