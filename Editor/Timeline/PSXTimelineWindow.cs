@@ -41,6 +41,7 @@ namespace SplashEdit.EditorCode
             window.Focus();
         }
 
+#if UNITY_6000_4_OR_NEWER 
         [OnOpenAsset]
         public static bool OnOpenAsset(EntityId instanceID, int line)
         {
@@ -52,6 +53,19 @@ namespace SplashEdit.EditorCode
             }
             return false;
         }
+#else
+        [OnOpenAsset]
+        public static bool OnOpenAsset(int instanceID, int line)
+        {
+            var obj = EditorUtility.InstanceIDToObject(instanceID);
+            if (obj is PSXAnimationClip || obj is PSXCutsceneClip)
+            {
+                Open((ScriptableObject)obj);
+                return true;
+            }
+            return false;
+        }
+#endif
 
         private void OnEnable()
         {

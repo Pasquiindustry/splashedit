@@ -50,9 +50,18 @@ namespace SplashEdit.EditorCode
             public Mesh Mesh;
             public int Hash;
             public Texture2D Texture;
+
+#if UNITY_6000_4_OR_NEWER
+        public EntityId TilesetEntityId;
+#endif
+
         }
 
+#if UNITY_6000_4_OR_NEWER
+        private static readonly Dictionary<EntityId, Entry> s_cache = new Dictionary<EntityId, Entry>();
+#else
         private static readonly Dictionary<int, Entry> s_cache = new Dictionary<int, Entry>();
+#endif
         private static Material s_material;
 
         /// <summary>Throw away every cached mesh (the painter calls this).</summary>
@@ -80,7 +89,40 @@ namespace SplashEdit.EditorCode
             s_material = new Material(shader) { hideFlags = HideFlags.HideAndDontSave };
             return s_material;
         }
+#if UNITY_6000_4_OR_NEWER
+        private static int ContentHash(PSXTilemap map)
+        {
+            unchecked
+            {
+                int h = 17;
+                h = h * 31 + map.Width;
+                h = h * 31 + map.Height;
+                h = h * 31 + (map.Tileset != null ? map.Tileset.CellWidth * 397 + map.Tileset.CellHeight : 0);
+                foreach (var b in map.Brushes) h = h * 31 + b.tilesetCell * 7 + (b.walkable ? 1 : 0);
+                for (int y = 0; y < map.Height; y++)
+                    for (int x = 0; x < map.Width; x++)
+                        h = h * 31 + map.GetCell(x, y);
+                return h;
+            }
+        }
 
+        /// <summary>The cached world-space mesh for a map, rebuilt when it changes.</summary>
+        public static Mesh MeshFor(PSXTilemap map)
+        {
+            if (map == null || map.Tileset == null || map.Tileset.SourceTexture == null) return null;
+
+            EntityId key = map.GetEntityId();
+            EntityId tilesetEntityId = map.Tileset.GetEntityId();
+            int hash = ContentHash(map);
+            if (s_cache.TryGetValue(key, out Entry e) && e.Mesh != null && e.Hash == hash && e.TilesetEntityId == tilesetEntityId)
+                return e.Mesh;
+
+            if (e != null && e.Mesh != null) Object.DestroyImmediate(e.Mesh);
+            e = new Entry { Hash = hash, Texture = map.Tileset.SourceTexture, Mesh = BuildMesh(map), TilesetEntityId = tilesetEntityId };
+            s_cache[key] = e;
+            return e.Mesh;
+        }
+#else
         private static int ContentHash(PSXTilemap map)
         {
             unchecked
@@ -113,7 +155,7 @@ namespace SplashEdit.EditorCode
             s_cache[key] = e;
             return e.Mesh;
         }
-
+#endif
         private static Mesh BuildMesh(PSXTilemap map)
         {
             PSXSpriteSheet set = map.Tileset;
