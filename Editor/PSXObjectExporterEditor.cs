@@ -16,6 +16,7 @@ namespace SplashEdit.EditorCode
         private SerializedProperty vertexColorModeProp;
         private SerializedProperty flatVertexColorProp;
         private SerializedProperty smoothNormalsProp;
+        private SerializedProperty dynamicLightingProp;
         private SerializedProperty isPlatformProp;
         private SerializedProperty uvOffsetMaterialProp;
 
@@ -36,6 +37,7 @@ namespace SplashEdit.EditorCode
             vertexColorModeProp = serializedObject.FindProperty("vertexColorMode");
             flatVertexColorProp = serializedObject.FindProperty("flatVertexColor");
             smoothNormalsProp = serializedObject.FindProperty("smoothNormals");
+            dynamicLightingProp = serializedObject.FindProperty("dynamicLighting");
             isPlatformProp = serializedObject.FindProperty("isPlatform");
             uvOffsetMaterialProp = serializedObject.FindProperty("uvOffsetMaterial");
 
@@ -148,6 +150,10 @@ namespace SplashEdit.EditorCode
                     EditorGUILayout.HelpBox("This mesh has no vertex colors. Will fall back to gray (128,128,128).", MessageType.Warning);
                 }
             }
+
+            EditorGUILayout.PropertyField(dynamicLightingProp, new GUIContent("Dynamic Lighting",
+                "Auto: lit at runtime when a Point Light's Range reaches this mesh at export. " +
+                "On: always lit at runtime (for meshes that move into lights). Off: Point Lights are baked instead."));
 
             EditorGUILayout.PropertyField(uvOffsetMaterialProp, new GUIContent("UV Offset Material"));
             EditorGUILayout.PropertyField(luaFileProp, new GUIContent("Lua Script"));

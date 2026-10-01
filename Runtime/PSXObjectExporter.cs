@@ -19,6 +19,13 @@ namespace SplashEdit.RuntimeCode
         MeshVertexColors = 2
     }
 
+    public enum PSXDynamicLighting
+    {
+        Auto = 0,  // lit at runtime if a Point Light's range reaches the mesh at export
+        On = 1,    // always lit at runtime, e.g. a mesh that moves into lights
+        Off = 2    // never lit at runtime; Point Lights are baked instead
+    }
+
     [RequireComponent(typeof(MeshFilter))]
     [RequireComponent(typeof(MeshRenderer))]
     [Icon("Packages/net.psxsplash.splashedit/Icons/PSXObjectExporter.png")]
@@ -46,6 +53,10 @@ namespace SplashEdit.RuntimeCode
         [Tooltip("Smooth normals for lighting. Disable for flat/faceted shading.")]
         [SerializeField] private bool smoothNormals = true;
 
+        [Tooltip("Auto lights this mesh at runtime when a Point Light's Range reaches it at export. " +
+                 "Use On for meshes that move into lights, Off to bake Point Lights into it instead.")]
+        [SerializeField] private PSXDynamicLighting dynamicLighting = PSXDynamicLighting.Auto;
+
         [Tooltip("Mark as platform: all boundary edges of nav regions from this mesh allow walkoff. Agent radius is not enforced at the edges.")]
         [SerializeField] private bool isPlatform = false;
         [SerializeField] private int uvOffsetMaterial = 0;
@@ -55,6 +66,10 @@ namespace SplashEdit.RuntimeCode
         public VertexColorMode ColorMode => vertexColorMode;
         public Color32 FlatVertexColor => flatVertexColor;
         public bool SmoothNormals => smoothNormals;
+        public PSXDynamicLighting DynamicLighting => dynamicLighting;
+
+        /// <summary>Set by the scene exporter before <see cref="CreatePSXMesh"/>.</summary>
+        public bool IsDynamicLit { get; set; }
         public bool IsPlatform => isPlatform;
         public int UVOffsetMaterial => uvOffsetMaterial;
 
@@ -121,7 +136,8 @@ namespace SplashEdit.RuntimeCode
             Renderer renderer = GetComponent<Renderer>();
             if (renderer != null)
             {
-                Mesh = PSXMesh.CreateFromUnityRenderer(renderer, GTEScaling, transform, Textures, vertexColorMode, flatVertexColor, smoothNormals);
+                Mesh = PSXMesh.CreateFromUnityRenderer(renderer, GTEScaling, transform, Textures, vertexColorMode, flatVertexColor, smoothNormals,
+                    bakePointLights: !IsDynamicLit);
             }
         }
     }
