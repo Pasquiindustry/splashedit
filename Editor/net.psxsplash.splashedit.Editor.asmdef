@@ -3,6 +3,7 @@
     "rootNamespace": "",
     "references": [
         "net.psxsplash.splashedit.Runtime",
+        "net.psxsplash.splashedit.Core",
         "Unity.AI.Navigation"
     ],
     "includePlatforms": [

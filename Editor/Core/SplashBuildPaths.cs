@@ -95,6 +95,13 @@ namespace SplashEdit.EditorCode
             Path.Combine(BuildOutputDir, "manifest.bin");
 
         /// <summary>
+        /// Engine features the last export needs: the FEATURES value on the first
+        /// line, then why each one is in or out.
+        /// </summary>
+        public static string EngineFeaturesPath =>
+            Path.Combine(BuildOutputDir, "engine-features.txt");
+
+        /// <summary>
         /// Build log file path.
         /// </summary>
         public static string BuildLogPath =>
