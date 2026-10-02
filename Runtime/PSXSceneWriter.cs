@@ -429,12 +429,12 @@ namespace SplashEdit.RuntimeCode
                     else
                         writer.Write((short)-1);
 
-                    // Bitfield (LSB = isActive, bit 4 = isSkinned, bit 5 = dynamicLit)
+                    // Bitfield (LSB = isActive, bit 4 = isSkinned, bit 16 = dynamicLit)
                     int flagsAsInt = exporter.IsActive ? 1 : 0;
                     if (skinnedProxySet.Contains(exporter))
                         flagsAsInt |= 0x10; // bit 4 = isSkinned
                     if (hasLights && exporter.IsDynamicLit)
-                        flagsAsInt |= 0x20; // bit 5 = dynamicLit
+                        flagsAsInt |= 0x10000; // bit 16 = dynamicLit
                     writer.Write(flagsAsInt);
 
                     // Component indices (8 bytes)
