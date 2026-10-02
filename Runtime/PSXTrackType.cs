@@ -16,5 +16,10 @@ namespace SplashEdit.RuntimeCode
         RumbleSmall = 11,
         RumbleLarge = 12,
         ObjectUVOffset = 13,
+        LightPosition = 14,
+        LightColor = 15,
+        LightIntensity = 16,
+        LightRadius = 17,
+        LightEnabled = 18,
     }
 }

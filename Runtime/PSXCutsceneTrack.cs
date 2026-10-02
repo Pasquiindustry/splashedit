@@ -13,7 +13,7 @@ namespace SplashEdit.RuntimeCode
         [Tooltip("What property this track drives.")]
         public PSXTrackType TrackType;
 
-        [Tooltip("Target GameObject name (must match a PSXObjectExporter). Leave empty for camera/UI tracks.")]
+        [Tooltip("Target GameObject name: a PSXObjectExporter for object tracks, a Realtime or Mixed Point Light for light tracks. Leave empty for camera/UI tracks.")]
         public string ObjectName = "";
 
         [Tooltip("For UI tracks: canvas name (e.g. 'hud'). Used by UICanvasVisible and to resolve elements.")]
@@ -35,6 +35,9 @@ namespace SplashEdit.RuntimeCode
         public bool IsCameraTrack => TrackType == PSXTrackType.CameraPosition ||
                                      TrackType == PSXTrackType.CameraRotation ||
                                      TrackType == PSXTrackType.CameraH;
+
+        /// <summary>Returns true if this track drives a runtime Point Light named by ObjectName.</summary>
+        public bool IsLightTrack => TrackType >= PSXTrackType.LightPosition && TrackType <= PSXTrackType.LightEnabled;
 
         /// <summary>Returns true if this is a vibration/rumble track.</summary>
         public bool IsVibrationTrack => TrackType == PSXTrackType.RumbleSmall ||

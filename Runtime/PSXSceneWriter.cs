@@ -841,6 +841,7 @@ namespace SplashEdit.RuntimeCode
                         scene.exporters,
                         scene.audioSources,
                         scene.skinnedExporters,
+                        pointLights,
                         scene.gteScaling,
                         out long cutsceneTableActual,
                         log);
@@ -865,6 +866,7 @@ namespace SplashEdit.RuntimeCode
                         scene.animations,
                         scene.exporters,
                         scene.skinnedExporters,
+                        pointLights,
                         scene.gteScaling,
                         out long animationTableActual,
                         log);

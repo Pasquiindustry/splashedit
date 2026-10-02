@@ -403,7 +403,7 @@ namespace SplashEdit.RuntimeCode
         {
             if (tracks == null) return;
             foreach (var t in tracks)
-                if (t != null && !string.IsNullOrEmpty(t.ObjectName) && !t.IsCameraTrack && !t.IsUITrack)
+                if (t != null && !string.IsNullOrEmpty(t.ObjectName) && !t.IsCameraTrack && !t.IsUITrack && !t.IsLightTrack)
                     names.Add(t.ObjectName);
         }
 

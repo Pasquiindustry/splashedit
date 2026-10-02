@@ -675,6 +675,43 @@ namespace SplashEdit.EditorCode
                 menu.AddDisabledItem(new GUIContent("Object/(no PSXObjectExporters in scene)"));
             }
 
+            // -- Light tracks: submenu per Point Light. Only Realtime/Mixed ones run on the PS1. --
+            var pointLights = new List<Light>();
+            foreach (var l in Object.FindObjectsByType<Light>(FindObjectsSortMode.None))
+                if (l.type == LightType.Point) pointLights.Add(l);
+            pointLights.Sort((a, b) => string.CompareOrdinal(a.gameObject.name, b.gameObject.name));
+            if (pointLights.Count > 0)
+            {
+                var exported = PSXPointLightExporter.Collect(logWarnings: false);
+                foreach (var light in pointLights)
+                {
+                    string n = light.gameObject.name;
+                    string problem = PSXPointLightExporter.TrackLightProblem(n, exported);
+                    if (problem != null)
+                    {
+                        string why = PSXPointLightExporter.IsRuntime(light)
+                            ? "not exported, too many runtime lights"
+                            : "Baked: set its Mode to Realtime or Mixed";
+                        menu.AddDisabledItem(new GUIContent($"Light/{n} ({why})"));
+                        continue;
+                    }
+                    menu.AddItem(new GUIContent($"Light/{n}/Position"), false,
+                        () => AddTrack(PSXTrackType.LightPosition, objectName: n));
+                    menu.AddItem(new GUIContent($"Light/{n}/Color"), false,
+                        () => AddTrack(PSXTrackType.LightColor, objectName: n));
+                    menu.AddItem(new GUIContent($"Light/{n}/Intensity"), false,
+                        () => AddTrack(PSXTrackType.LightIntensity, objectName: n));
+                    menu.AddItem(new GUIContent($"Light/{n}/Range"), false,
+                        () => AddTrack(PSXTrackType.LightRadius, objectName: n));
+                    menu.AddItem(new GUIContent($"Light/{n}/Enabled"), false,
+                        () => AddTrack(PSXTrackType.LightEnabled, objectName: n));
+                }
+            }
+            else
+            {
+                menu.AddDisabledItem(new GUIContent("Light/(no Point Lights in scene)"));
+            }
+
             // -- UI Canvas Visible track --
             var canvases = Object.FindObjectsByType<PSXCanvas>(FindObjectsSortMode.None);
             if (canvases.Length > 0)
@@ -818,10 +855,20 @@ namespace SplashEdit.EditorCode
                 float frame = _state.PixelXToFrame(localPos.x);
                 int targetFrame = Mathf.Clamp(Mathf.RoundToInt(frame), 0, _state.DurationFrames);
 
+                // A light keyframe starts from the light as it is now (during
+                // preview, the value at the playhead), so adding one changes nothing
+                // until it is edited.
+                Vector3 value = Vector3.zero;
+                if (track.IsLightTrack)
+                {
+                    var light = PSXPointLightExporter.FindTrackLight(track.ObjectName);
+                    if (light != null) value = PSXPointLightExporter.CaptureTrackValue(light, track.TrackType);
+                }
+
                 track.Keyframes.Add(new PSXKeyframe
                 {
                     Frame = targetFrame,
-                    Value = Vector3.zero,
+                    Value = value,
                     Interp = PSXInterpMode.Linear
                 });
                 track.Keyframes.Sort((a, b) => a.Frame.CompareTo(b.Frame));
