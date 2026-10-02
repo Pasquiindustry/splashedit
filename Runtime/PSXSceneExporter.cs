@@ -134,6 +134,8 @@ namespace SplashEdit.RuntimeCode
 
         public bool PreviewBVH = true;
         public bool PreviewRoomsPortals = true;
+        [Tooltip("Scene view: mark meshes reached by more Realtime/Mixed Point Lights than the PS1 applies (4), and draw lines to the lights of the selected mesh.")]
+        public bool PreviewPointLights = true;
 
         public int BVHPreviewDepth = 9999;
 

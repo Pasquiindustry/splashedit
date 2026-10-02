@@ -7,37 +7,99 @@ namespace SplashEdit.RuntimeCode
     /// <summary>
     /// Unity Point Lights exported as runtime point lights (splashpack v24).
     ///
-    /// A mesh set to Auto is lit at runtime when any exported light's range
-    /// reaches its bounds. Point lights are then left out of that mesh's baked
-    /// vertex colours, so they are not counted twice. Meshes that are not lit at
-    /// runtime bake every light exactly as before.
+    /// Unity's own Light Mode decides which: Baked point lights go into vertex
+    /// colours exactly as before and never run on the console; Realtime and
+    /// Mixed ones are runtime lights. A mesh set to Auto is lit at runtime when
+    /// a runtime light's range reaches its bounds, and runtime lights are then
+    /// left out of that mesh's bake so they are not counted twice.
     /// </summary>
     public static class PSXPointLightExporter
     {
         public const int MaxSceneLights = 16;   // MAX_SCENE_LIGHTS in lightmath.hh
         public const int MaxLightsPerMesh = 4;  // MAX_LIGHTS_PER_MESH in lightmath.hh
 
+        /// <summary>What export will do with one mesh. Shared by the exporter, the inspector and the gizmo.</summary>
+        public struct MeshLighting
+        {
+            public bool HasMesh;
+            public bool RuntimeLit;
+            /// Runtime lights reaching the mesh, in the order the PS1 picks them.
+            public List<Light> Reaching;
+            /// Baked-mode Point Lights reaching the mesh (always baked).
+            public List<Light> BakedReaching;
+
+            public bool OverCap => RuntimeLit && Reaching.Count > MaxLightsPerMesh;
+            public IEnumerable<Light> Kept => Reaching.Take(MaxLightsPerMesh);
+            public IEnumerable<Light> Ignored => Reaching.Skip(MaxLightsPerMesh);
+        }
+
+        /// <summary>A Point Light whose Light Mode is Realtime or Mixed.</summary>
+        public static bool IsRuntime(Light light)
+        {
+            if (light.type != LightType.Point) return false;
+#if UNITY_EDITOR
+            return light.lightmapBakeType != LightmapBakeType.Baked;
+#else
+            return true;
+#endif
+        }
+
+        static bool IsBakedPoint(Light light) => light.type == LightType.Point && !IsRuntime(light);
+
         /// <summary>
-        /// Every Point Light on an active GameObject, disabled ones included so
-        /// Lua can switch them on. Sorted by hierarchy path, which keeps the
-        /// table order (and so which four win on a crowded mesh) stable between
-        /// exports.
+        /// Every runtime Point Light on an active GameObject, disabled ones
+        /// included so Lua can switch them on. Sorted by hierarchy path, which
+        /// keeps the table order (and so which four win on a crowded mesh)
+        /// stable between exports.
         /// </summary>
-        public static Light[] Collect()
+        public static Light[] Collect(bool logWarnings = true)
         {
             var lights = Object.FindObjectsByType<Light>(FindObjectsSortMode.None)
-                .Where(l => l.type == LightType.Point)
+                .Where(IsRuntime)
                 .OrderBy(l => HierarchyPath(l.transform), System.StringComparer.Ordinal)
                 .ToList();
             if (lights.Count > MaxSceneLights)
             {
-                Debug.LogWarning($"[PSX lights] The scene has {lights.Count} Point Lights. The PS1 keeps " +
-                                 $"the first {MaxSceneLights}; these are left out: " +
-                                 string.Join(", ", lights.Skip(MaxSceneLights).Select(l => l.name)));
+                if (logWarnings)
+                    Debug.LogWarning(SceneCapMessage(lights));
                 lights.RemoveRange(MaxSceneLights, lights.Count - MaxSceneLights);
             }
             return lights.ToArray();
         }
+
+        public static string SceneCapMessage(IList<Light> lights) =>
+            $"[PSX lights] The scene has {lights.Count} Realtime/Mixed Point Lights and the PS1 holds " +
+            $"{MaxSceneLights}, so these are left out: " +
+            string.Join(", ", lights.Skip(MaxSceneLights).Select(l => l.name)) +
+            ". To fix it, set the Mode of the lights that never change to Baked, or delete some.";
+
+        /// <param name="includeBaked">Also list the Baked-mode Point Lights reaching it (a scene search).</param>
+        public static MeshLighting Analyze(PSXObjectExporter exp, Light[] runtimeLights, bool includeBaked = false)
+        {
+            var result = new MeshLighting { Reaching = new List<Light>(), BakedReaching = new List<Light>() };
+            if (!TryGetWorldBounds(exp, out Bounds bounds)) return result;
+            result.HasMesh = true;
+            result.Reaching.AddRange(runtimeLights.Where(l => l != null && Reaches(l, bounds)));
+            if (includeBaked)
+                result.BakedReaching.AddRange(Object.FindObjectsByType<Light>(FindObjectsSortMode.None)
+                    .Where(l => l.enabled && IsBakedPoint(l) && Reaches(l, bounds)));
+            if (runtimeLights.Any(l => l != null))
+            {
+                switch (exp.DynamicLighting)
+                {
+                    case PSXDynamicLighting.On: result.RuntimeLit = true; break;
+                    case PSXDynamicLighting.Off: result.RuntimeLit = false; break;
+                    default: result.RuntimeLit = result.Reaching.Count > 0; break;
+                }
+            }
+            return result;
+        }
+
+        public static string MeshCapMessage(PSXObjectExporter exp, MeshLighting ml) =>
+            $"[PSX lights] {ml.Reaching.Count} Realtime/Mixed Point Lights reach '{exp.name}', and the PS1 lights " +
+            $"a mesh with {MaxLightsPerMesh}. It uses {string.Join(", ", ml.Kept.Select(l => l.name))} and ignores " +
+            $"{string.Join(", ", ml.Ignored.Select(l => l.name))}. To fix it, lower a light's Range, set a light " +
+            "that never moves to Mode Baked, or split the mesh so each piece is reached by four or fewer.";
 
         /// <summary>
         /// Decide which exporters are lit at runtime and set
@@ -51,24 +113,10 @@ namespace SplashEdit.RuntimeCode
                 exp.IsDynamicLit = false;
                 if (lights.Length == 0) continue;
                 if (skinnedProxies != null && skinnedProxies.Contains(exp)) continue;
-                if (!TryGetWorldBounds(exp, out Bounds bounds)) continue;
-
-                var touching = lights.Where(l => Reaches(l, bounds)).ToList();
-                switch (exp.DynamicLighting)
-                {
-                    case PSXDynamicLighting.On: exp.IsDynamicLit = true; break;
-                    case PSXDynamicLighting.Off: exp.IsDynamicLit = false; break;
-                    default: exp.IsDynamicLit = touching.Count > 0; break;
-                }
-
-                if (exp.IsDynamicLit && touching.Count > MaxLightsPerMesh)
-                {
-                    Debug.LogWarning($"[PSX lights] {touching.Count} Point Lights reach '{exp.name}', but the PS1 " +
-                                     $"lights a mesh with at most {MaxLightsPerMesh}. It will use " +
-                                     string.Join(", ", touching.Take(MaxLightsPerMesh).Select(l => l.name)) +
-                                     " and ignore " + string.Join(", ", touching.Skip(MaxLightsPerMesh).Select(l => l.name)) +
-                                     ". Shrink a light's Range or split the mesh.", exp);
-                }
+                var ml = Analyze(exp, lights);
+                exp.IsDynamicLit = ml.RuntimeLit;
+                if (ml.OverCap)
+                    Debug.LogWarning(MeshCapMessage(exp, ml), exp);
             }
         }
 
@@ -103,6 +151,24 @@ namespace SplashEdit.RuntimeCode
             }
             return true;
         }
+
+#if UNITY_EDITOR
+        // The inspector and every exporter's gizmo ask for the scene's lights on
+        // each repaint; one lookup per editor tick is plenty.
+        static Light[] s_cached;
+        static double s_cachedAt = -1;
+
+        public static Light[] CollectCached()
+        {
+            double now = UnityEditor.EditorApplication.timeSinceStartup;
+            if (s_cached == null || now - s_cachedAt > 0.25)
+            {
+                s_cached = Collect(logWarnings: false);
+                s_cachedAt = now;
+            }
+            return s_cached;
+        }
+#endif
 
         private static string HierarchyPath(Transform t)
         {

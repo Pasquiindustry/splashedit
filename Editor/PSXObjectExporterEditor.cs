@@ -57,6 +57,9 @@ namespace SplashEdit.EditorCode
             }
         }
 
+        // The lighting status follows lights the user drags around the scene.
+        public override bool RequiresConstantRepaint() => PSXPointLightExporter.CollectCached().Length > 0;
+
         public override void OnInspectorGUI()
         {
             serializedObject.Update();
@@ -152,8 +155,9 @@ namespace SplashEdit.EditorCode
             }
 
             EditorGUILayout.PropertyField(dynamicLightingProp, new GUIContent("Dynamic Lighting",
-                "Auto: lit at runtime when a Point Light's Range reaches this mesh at export. " +
+                "Auto: lit at runtime when a Realtime or Mixed Point Light's Range reaches this mesh at export. " +
                 "On: always lit at runtime (for meshes that move into lights). Off: Point Lights are baked instead."));
+            DrawLightingStatus((PSXDynamicLighting)dynamicLightingProp.enumValueIndex, vcMode);
 
             EditorGUILayout.PropertyField(uvOffsetMaterialProp, new GUIContent("UV Offset Material"));
             EditorGUILayout.PropertyField(luaFileProp, new GUIContent("Lua Script"));
@@ -180,6 +184,52 @@ namespace SplashEdit.EditorCode
             }
 
             EditorGUI.indentLevel--;
+        }
+
+        // Live answer to "will a point light light this?", from the same code
+        // the exporter runs.
+        private void DrawLightingStatus(PSXDynamicLighting mode, VertexColorMode vcMode)
+        {
+            var exporter = target as PSXObjectExporter;
+            Light[] lights = PSXPointLightExporter.CollectCached();
+            var ml = PSXPointLightExporter.Analyze(exporter, lights, includeBaked: true);
+            if (!ml.HasMesh) return;
+
+            bool anyRuntime = lights.Any(l => l != null);
+            bool lit = anyRuntime && (mode == PSXDynamicLighting.On ||
+                                      (mode == PSXDynamicLighting.Auto && ml.Reaching.Count > 0));
+            bool bakes = vcMode == VertexColorMode.BakedLighting;
+            string Names(System.Collections.Generic.IEnumerable<Light> ls) => string.Join(", ", ls.Select(l => l.name));
+
+            string text;
+            if (lit && ml.Reaching.Count > 0)
+                text = $"Lit at runtime by {Names(ml.Kept)}.";
+            else if (lit)
+                text = "Lit at runtime. No Realtime or Mixed Point Light reaches it in the scene as it is now; " +
+                       "it lights up when one moves into range.";
+            else if (mode == PSXDynamicLighting.On)
+                text = "Set to On, but the scene has no Realtime or Mixed Point Light to light it with.";
+            else if (ml.Reaching.Count > 0)
+                text = bakes
+                    ? $"Not lit at runtime: Dynamic Lighting is Off, so {Names(ml.Reaching)} are baked into its vertex colours."
+                    : $"Not lit by {Names(ml.Reaching)}: Dynamic Lighting is Off and Vertex Colors is not Baked Lighting, " +
+                      "so nothing bakes them either. Set Dynamic Lighting to Auto to light it.";
+            else
+                text = "No Realtime or Mixed Point Light reaches this mesh, so it keeps its baked vertex colours.";
+            if (ml.BakedReaching.Count > 0)
+                text += bakes
+                    ? $" Baked into its vertex colours: {Names(ml.BakedReaching)}."
+                    : $" {Names(ml.BakedReaching)} (Mode Baked) need Vertex Colors set to Baked Lighting to show up.";
+            GUILayout.Label(text, PSXEditorStyles.InfoBox);
+
+            if (lit && ml.Reaching.Count > PSXPointLightExporter.MaxLightsPerMesh)
+            {
+                EditorGUILayout.HelpBox(
+                    $"{ml.Reaching.Count} Realtime/Mixed Point Lights reach this mesh and the PS1 applies " +
+                    $"{PSXPointLightExporter.MaxLightsPerMesh}, so {Names(ml.Ignored)} will not light it. Lower a light's " +
+                    "Range, set a light that never moves to Mode Baked, or split this mesh into smaller pieces.",
+                    MessageType.Warning);
+            }
         }
 
         private void DrawCollisionSection()

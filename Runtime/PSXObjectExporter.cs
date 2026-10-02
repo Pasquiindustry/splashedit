@@ -21,9 +21,9 @@ namespace SplashEdit.RuntimeCode
 
     public enum PSXDynamicLighting
     {
-        Auto = 0,  // lit at runtime if a Point Light's range reaches the mesh at export
+        Auto = 0,  // lit at runtime if a Realtime/Mixed Point Light's range reaches it at export
         On = 1,    // always lit at runtime, e.g. a mesh that moves into lights
-        Off = 2    // never lit at runtime; Point Lights are baked instead
+        Off = 2    // never lit at runtime; every Point Light is baked instead
     }
 
     [RequireComponent(typeof(MeshFilter))]
@@ -53,7 +53,7 @@ namespace SplashEdit.RuntimeCode
         [Tooltip("Smooth normals for lighting. Disable for flat/faceted shading.")]
         [SerializeField] private bool smoothNormals = true;
 
-        [Tooltip("Auto lights this mesh at runtime when a Point Light's Range reaches it at export. " +
+        [Tooltip("Auto lights this mesh at runtime when a Realtime or Mixed Point Light's Range reaches it at export. " +
                  "Use On for meshes that move into lights, Off to bake Point Lights into it instead.")]
         [SerializeField] private PSXDynamicLighting dynamicLighting = PSXDynamicLighting.Auto;
 
@@ -130,6 +130,42 @@ namespace SplashEdit.RuntimeCode
             }
             return null;
         }
+
+#if UNITY_EDITOR
+        // Scene view: a mesh reached by more runtime Point Lights than the PS1 can
+        // apply gets a red box and a label, drawn like the room/portal previews.
+        void OnDrawGizmos()
+        {
+            var scene = FindFirstObjectByType<PSXSceneExporter>();
+            if (scene != null && !scene.PreviewPointLights) return;
+            var ml = PSXPointLightExporter.Analyze(this, PSXPointLightExporter.CollectCached());
+            if (!ml.OverCap || !PSXPointLightExporter.TryGetWorldBounds(this, out Bounds b)) return;
+            Gizmos.color = new Color(1f, 0.25f, 0.1f, 0.15f);
+            Gizmos.DrawCube(b.center, b.size);
+            Gizmos.color = new Color(1f, 0.25f, 0.1f, 0.8f);
+            Gizmos.DrawWireCube(b.center, b.size);
+            UnityEditor.Handles.Label(b.center,
+                $"{ml.Reaching.Count} point lights, PS1 uses {PSXPointLightExporter.MaxLightsPerMesh}",
+                new GUIStyle { normal = { textColor = new Color(1f, 0.4f, 0.3f) } });
+        }
+
+        // Selected: a line to each runtime Point Light that reaches the mesh,
+        // yellow for the ones the PS1 applies and red for the ones it drops.
+        void OnDrawGizmosSelected()
+        {
+            var scene = FindFirstObjectByType<PSXSceneExporter>();
+            if (scene != null && !scene.PreviewPointLights) return;
+            var ml = PSXPointLightExporter.Analyze(this, PSXPointLightExporter.CollectCached());
+            if (!ml.RuntimeLit || !PSXPointLightExporter.TryGetWorldBounds(this, out Bounds b)) return;
+            int i = 0;
+            foreach (Light l in ml.Reaching)
+            {
+                Gizmos.color = i++ < PSXPointLightExporter.MaxLightsPerMesh ? new Color(1f, 0.85f, 0.2f, 0.8f)
+                                                                              : new Color(1f, 0.25f, 0.1f, 0.8f);
+                Gizmos.DrawLine(b.center, l.transform.position);
+            }
+        }
+#endif
 
         public void CreatePSXMesh(float GTEScaling)
         {
