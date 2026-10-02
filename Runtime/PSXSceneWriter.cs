@@ -435,6 +435,8 @@ namespace SplashEdit.RuntimeCode
                         flagsAsInt |= 0x10; // bit 4 = isSkinned
                     if (hasLights && exporter.IsDynamicLit)
                         flagsAsInt |= 0x10000; // bit 16 = dynamicLit
+                    if (hasLights && exporter.IsDynamicLitSmooth)
+                        flagsAsInt |= 0x20000; // bit 17 = per-vertex rather than per-triangle
                     writer.Write(flagsAsInt);
 
                     // Component indices (8 bytes)

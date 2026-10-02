@@ -23,7 +23,9 @@ namespace SplashEdit.RuntimeCode
     {
         Auto = 0,  // lit at runtime if a Realtime/Mixed Point Light's range reaches it at export
         On = 1,    // always lit at runtime, e.g. a mesh that moves into lights
-        Off = 2    // never lit at runtime; every Point Light is baked instead
+        Off = 2,   // never lit at runtime; every Point Light is baked instead
+        [InspectorName("On (smooth)")]
+        OnSmooth = 3  // always lit, per vertex rather than per triangle: smoother, about 9x the cost
     }
 
     [RequireComponent(typeof(MeshFilter))]
@@ -54,7 +56,9 @@ namespace SplashEdit.RuntimeCode
         [SerializeField] private bool smoothNormals = true;
 
         [Tooltip("Auto lights this mesh at runtime when a Realtime or Mixed Point Light's Range reaches it at export. " +
-                 "Use On for meshes that move into lights, Off to bake Point Lights into it instead.")]
+                 "Use On for meshes that move into lights, Off to bake Point Lights into it instead. " +
+                 "Runtime lighting is one colour per triangle; On (smooth) lights each vertex instead, " +
+                 "which looks smoother on big triangles and costs about nine times as much.")]
         [SerializeField] private PSXDynamicLighting dynamicLighting = PSXDynamicLighting.Auto;
 
         [Tooltip("Mark as platform: all boundary edges of nav regions from this mesh allow walkoff. Agent radius is not enforced at the edges.")]
@@ -70,6 +74,7 @@ namespace SplashEdit.RuntimeCode
 
         /// <summary>Set by the scene exporter before <see cref="CreatePSXMesh"/>.</summary>
         public bool IsDynamicLit { get; set; }
+        public bool IsDynamicLitSmooth => IsDynamicLit && dynamicLighting == PSXDynamicLighting.OnSmooth;
         public bool IsPlatform => isPlatform;
         public int UVOffsetMaterial => uvOffsetMaterial;
 

@@ -87,7 +87,8 @@ namespace SplashEdit.RuntimeCode
             {
                 switch (exp.DynamicLighting)
                 {
-                    case PSXDynamicLighting.On: result.RuntimeLit = true; break;
+                    case PSXDynamicLighting.On:
+                    case PSXDynamicLighting.OnSmooth: result.RuntimeLit = true; break;
                     case PSXDynamicLighting.Off: result.RuntimeLit = false; break;
                     default: result.RuntimeLit = result.Reaching.Count > 0; break;
                 }
