@@ -22,6 +22,8 @@ namespace SplashEdit.EditorCode
         private static readonly Color ObjectTrackTint = new Color(0.35f, 0.85f, 0.45f, 0.08f);
         private static readonly Color UITrackTint = new Color(0.85f, 0.3f, 0.65f, 0.08f);
         private static readonly Color VibrationTrackTint = new Color(0.95f, 0.75f, 0.2f, 0.08f);
+        private static readonly Color LightTrackColor = new Color(1f, 0.55f, 0.2f);
+        private static readonly Color LightTrackTint = new Color(1f, 0.55f, 0.2f, 0.08f);
 
         // =====================================================================
         // Toolbar
@@ -281,7 +283,8 @@ namespace SplashEdit.EditorCode
                     float centerY = laneY + PSXTimelineState.TrackHeight * 0.5f;
                     bool isBool = track.TrackType == PSXTrackType.ObjectActive ||
                                   track.TrackType == PSXTrackType.UICanvasVisible ||
-                                  track.TrackType == PSXTrackType.UIElementVisible;
+                                  track.TrackType == PSXTrackType.UIElementVisible ||
+                                  track.TrackType == PSXTrackType.LightEnabled;
 
                     if (isBool)
                         DrawBoolTrack(state, track, ti, laneY, centerY, localRect);
@@ -536,6 +539,11 @@ namespace SplashEdit.EditorCode
                 case PSXTrackType.UIColor: return $"Color: {track.UICanvasName}/{track.UIElementName}";
                 case PSXTrackType.RumbleSmall: return "Rumble: Small Motor";
                 case PSXTrackType.RumbleLarge: return "Rumble: Large Motor";
+                case PSXTrackType.LightPosition: return $"Light Pos: {track.ObjectName}";
+                case PSXTrackType.LightColor: return $"Light Color: {track.ObjectName}";
+                case PSXTrackType.LightIntensity: return $"Light Int: {track.ObjectName}";
+                case PSXTrackType.LightRadius: return $"Light Range: {track.ObjectName}";
+                case PSXTrackType.LightEnabled: return $"Light On: {track.ObjectName}";
                 default: return $"Track {track.TrackType}";
             }
         }
@@ -545,6 +553,7 @@ namespace SplashEdit.EditorCode
             if (track.IsCameraTrack) return PSXEditorStyles.AccentCyan;
             if (track.IsUITrack) return PSXEditorStyles.AccentMagenta;
             if (track.IsVibrationTrack) return PSXEditorStyles.AccentGold;
+            if (track.IsLightTrack) return LightTrackColor;
             return PSXEditorStyles.AccentGreen;
         }
 
@@ -553,6 +562,7 @@ namespace SplashEdit.EditorCode
             if (track.IsCameraTrack) return CameraTrackTint;
             if (track.IsUITrack) return UITrackTint;
             if (track.IsVibrationTrack) return VibrationTrackTint;
+            if (track.IsLightTrack) return LightTrackTint;
             return ObjectTrackTint;
         }
 

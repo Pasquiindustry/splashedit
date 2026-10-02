@@ -29,6 +29,7 @@ namespace SplashEdit.RuntimeCode
             PSXAnimationClip[] animations,
             PSXObjectExporter[] exporters,
             PSXSkinnedObjectExporter[] skinnedExporters,
+            Light[] pointLights,
             float gteScaling,
             out long animationTableStart,
             Action<string, LogType> log = null)
@@ -149,13 +150,16 @@ namespace SplashEdit.RuntimeCode
                 {
                     PSXCutsceneTrack track = validTracks[ti];
                     string objName = GetTrackTargetName(track);
+                    byte lightIndex = track.IsLightTrack
+                        ? PSXPointLightExporter.ResolveTrackLight(track, pointLights, $"Animation '{clip.AnimationName}'", gteScaling, log)
+                        : (byte)0;
 
                     int kfCount = Mathf.Min(track.Keyframes?.Count ?? 0, MAX_KEYFRAMES);
 
                     writer.Write((byte)track.TrackType);
                     writer.Write((byte)kfCount);
                     writer.Write((byte)objName.Length);
-                    writer.Write((byte)0);  // pad
+                    writer.Write(lightIndex);  // light tracks: light table index; pad otherwise
                     trackObjectNameOffsets[ti] = writer.BaseStream.Position;
                     writer.Write((uint)0);  // objectNameOffset placeholder
                     trackKeyframesOffsets[ti] = writer.BaseStream.Position;
@@ -256,6 +260,13 @@ namespace SplashEdit.RuntimeCode
                                 writer.Write((short)0);
                                 break;
                             }
+                            case PSXTrackType.LightPosition:
+                            case PSXTrackType.LightColor:
+                            case PSXTrackType.LightIntensity:
+                            case PSXTrackType.LightRadius:
+                            case PSXTrackType.LightEnabled:
+                                PSXPointLightExporter.WriteTrackKeyframe(writer, track.TrackType, kf.Value, gteScaling);
+                                break;
                             case PSXTrackType.RumbleLarge:
                             {
                                 // values[0] = motor speed 0-255
@@ -382,6 +393,9 @@ namespace SplashEdit.RuntimeCode
         {
             // Vibration tracks are global (no target object)
             if (track.IsVibrationTrack) return "";
+
+            // Light tracks carry a light table index instead of a name
+            if (track.IsLightTrack) return "";
 
             string name;
             if (track.IsUIElementTrack)

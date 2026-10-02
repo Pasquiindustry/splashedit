@@ -192,6 +192,42 @@ namespace SplashEdit.EditorCode
                     kf.Value = new Vector3(u, v, 0);
                     break;
                 }
+                case PSXTrackType.LightPosition:
+                    kf.Value = EditorGUILayout.Vector3Field(
+                        new GUIContent("Position", "World position of the light, like an object's."), kf.Value);
+                    break;
+                case PSXTrackType.LightColor:
+                {
+                    Color c = EditorGUILayout.ColorField(
+                        new GUIContent("Color", "Light colour. The PS1 keeps 8 bits per channel."),
+                        new Color(kf.Value.x, kf.Value.y, kf.Value.z), true, false, false);
+                    kf.Value = new Vector3(c.r, c.g, c.b);
+                    break;
+                }
+                case PSXTrackType.LightIntensity:
+                {
+                    float i = EditorGUILayout.Slider(
+                        new GUIContent("Intensity", "Same scale as the Light's Intensity: 1 is full colour."),
+                        kf.Value.x, 0f, 8f);
+                    kf.Value = new Vector3(i, 0, 0);
+                    break;
+                }
+                case PSXTrackType.LightRadius:
+                {
+                    float r = Mathf.Max(0f, EditorGUILayout.FloatField(
+                        new GUIContent("Range", "Same units as the Light's Range: the light reaches zero here."),
+                        kf.Value.x));
+                    kf.Value = new Vector3(r, 0, 0);
+                    break;
+                }
+                case PSXTrackType.LightEnabled:
+                {
+                    bool on = EditorGUILayout.Toggle(
+                        new GUIContent("Enabled", "Switches the light on or off at this frame (no fade)."),
+                        kf.Value.x > 0.5f);
+                    kf.Value = new Vector3(on ? 1f : 0f, 0, 0);
+                    break;
+                }
                 default:
                     kf.Value = EditorGUILayout.Vector3Field("Value", kf.Value);
                     break;
@@ -218,6 +254,17 @@ namespace SplashEdit.EditorCode
                         }
                     }
                 }
+            }
+            else if (track.IsLightTrack)
+            {
+                var light = PSXPointLightExporter.FindTrackLight(track.ObjectName);
+                EditorGUI.BeginDisabledGroup(light == null);
+                if (GUILayout.Button(new GUIContent($"Capture from '{track.ObjectName}'",
+                        "Set this keyframe from the light as it is in the scene now."), GUILayout.Width(220)))
+                {
+                    kf.Value = PSXPointLightExporter.CaptureTrackValue(light, track.TrackType);
+                }
+                EditorGUI.EndDisabledGroup();
             }
             else if (!track.IsUITrack &&
                 (track.TrackType == PSXTrackType.ObjectPosition || track.TrackType == PSXTrackType.ObjectRotation))
@@ -266,6 +313,26 @@ namespace SplashEdit.EditorCode
                 EditorGUI.BeginDisabledGroup(true);
                 EditorGUILayout.TextField("Target", "(controller)");
                 EditorGUI.EndDisabledGroup();
+            }
+            else if (track.IsLightTrack)
+            {
+                var names = new List<string>();
+                foreach (var l in Object.FindObjectsByType<Light>(FindObjectsSortMode.None))
+                    if (l.type == LightType.Point && !names.Contains(l.gameObject.name)) names.Add(l.gameObject.name);
+                names.Sort(string.CompareOrdinal);
+                if (!string.IsNullOrEmpty(track.ObjectName) && !names.Contains(track.ObjectName))
+                    names.Insert(0, track.ObjectName);
+                int sel = names.IndexOf(track.ObjectName);
+                int picked = EditorGUILayout.Popup(
+                    new GUIContent("Light", "The Point Light this track drives. Its Mode must be Realtime or Mixed."),
+                    sel, names.ConvertAll(x => new GUIContent(x)).ToArray());
+                if (picked >= 0 && picked != sel)
+                    track.ObjectName = names[picked];
+
+                string problem = PSXPointLightExporter.TrackLightProblem(track.ObjectName,
+                    PSXPointLightExporter.CollectCached());
+                if (problem != null)
+                    EditorGUILayout.HelpBox(problem, MessageType.Warning);
             }
             else if (track.IsUITrack)
             {

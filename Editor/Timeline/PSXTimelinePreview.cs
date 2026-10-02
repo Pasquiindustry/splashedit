@@ -27,6 +27,10 @@ namespace SplashEdit.EditorCode
         private Dictionary<string, bool> _savedObjectActive = new Dictionary<string, bool>();
         private Dictionary<string, Vector2> _savedObjectUVOffset = new Dictionary<string, Vector2>();
 
+        // Saved light state for light tracks (the position rides the transforms above)
+        private struct SavedLight { public Color Color; public float Intensity; public float Range; public bool Enabled; }
+        private Dictionary<string, SavedLight> _savedLights = new Dictionary<string, SavedLight>();
+
         // Audio preview
         private Dictionary<string, AudioClip> _audioClipCache = new Dictionary<string, AudioClip>();
         private HashSet<int> _firedAudioEventIndices = new HashSet<int>();
@@ -54,6 +58,7 @@ namespace SplashEdit.EditorCode
             _savedObjectRotations.Clear();
             _savedObjectActive.Clear();
             _savedObjectUVOffset.Clear();
+            _savedLights.Clear();
             _hasSavedSceneView = false;
 
             // Save scene view camera (cutscene only)
@@ -78,6 +83,17 @@ namespace SplashEdit.EditorCode
                 {
                     if (track.IsCameraTrack || track.IsUITrack) continue;
                     if (string.IsNullOrEmpty(track.ObjectName)) continue;
+
+                    if (track.IsLightTrack && !_savedLights.ContainsKey(track.ObjectName))
+                    {
+                        var light = PSXPointLightExporter.FindTrackLight(track.ObjectName);
+                        if (light != null)
+                            _savedLights[track.ObjectName] = new SavedLight
+                            {
+                                Color = light.color, Intensity = light.intensity,
+                                Range = light.range, Enabled = light.enabled,
+                            };
+                    }
 
                     var go = GameObject.Find(track.ObjectName);
                     if (go == null) continue;
@@ -203,6 +219,18 @@ namespace SplashEdit.EditorCode
             _savedObjectActive.Clear();
             _savedObjectUVOffset.Clear();
 
+            // Restore lights
+            foreach (var kvp in _savedLights)
+            {
+                var light = PSXPointLightExporter.FindTrackLight(kvp.Key);
+                if (light == null) continue;
+                light.color = kvp.Value.Color;
+                light.intensity = kvp.Value.Intensity;
+                light.range = kvp.Value.Range;
+                light.enabled = kvp.Value.Enabled;
+            }
+            _savedLights.Clear();
+
             // Restore skinned mesh poses
             if (_animModeStarted && AnimationMode.InAnimationMode())
             {
@@ -280,6 +308,16 @@ namespace SplashEdit.EditorCode
                                     go.GetComponent<SkinnedMeshRenderer>().materials[offsetMaterial].mainTextureOffset = val / 256;
                                 }
                             }
+                            break;
+                        }
+                        case PSXTrackType.LightPosition:
+                        case PSXTrackType.LightColor:
+                        case PSXTrackType.LightIntensity:
+                        case PSXTrackType.LightRadius:
+                        case PSXTrackType.LightEnabled:
+                        {
+                            var light = PSXPointLightExporter.FindTrackLight(track.ObjectName);
+                            if (light != null) PSXPointLightExporter.ApplyTrackValue(light, track.TrackType, val);
                             break;
                         }
                         // UI tracks: no scene preview
@@ -378,6 +416,19 @@ namespace SplashEdit.EditorCode
                 case PSXTrackType.UICanvasVisible:
                 case PSXTrackType.UIElementVisible:
                     return new Vector3(1f, 0, 0);
+                case PSXTrackType.LightPosition:
+                    if (_savedObjectPositions.TryGetValue(track.ObjectName ?? "", out var lightPos)) return lightPos;
+                    return Vector3.zero;
+                case PSXTrackType.LightColor:
+                    if (_savedLights.TryGetValue(track.ObjectName ?? "", out var sl))
+                        return new Vector3(sl.Color.r, sl.Color.g, sl.Color.b);
+                    return Vector3.one;
+                case PSXTrackType.LightIntensity:
+                    return new Vector3(_savedLights.TryGetValue(track.ObjectName ?? "", out var si) ? si.Intensity : 1f, 0, 0);
+                case PSXTrackType.LightRadius:
+                    return new Vector3(_savedLights.TryGetValue(track.ObjectName ?? "", out var sr) ? sr.Range : 0f, 0, 0);
+                case PSXTrackType.LightEnabled:
+                    return new Vector3(!_savedLights.TryGetValue(track.ObjectName ?? "", out var se) || se.Enabled ? 1f : 0f, 0, 0);
                 default:
                     return Vector3.zero;
             }
@@ -395,7 +446,8 @@ namespace SplashEdit.EditorCode
             // Step interpolation tracks
             if (track.TrackType == PSXTrackType.ObjectActive ||
                 track.TrackType == PSXTrackType.UICanvasVisible ||
-                track.TrackType == PSXTrackType.UIElementVisible)
+                track.TrackType == PSXTrackType.UIElementVisible ||
+                track.TrackType == PSXTrackType.LightEnabled)
             {
                 if (track.Keyframes.Count > 0 && track.Keyframes[0].Frame > 0 && frame < track.Keyframes[0].Frame)
                     return initialValue;
