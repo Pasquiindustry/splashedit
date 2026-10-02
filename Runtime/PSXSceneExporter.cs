@@ -59,6 +59,24 @@ namespace SplashEdit.RuntimeCode
         [Tooltip("Animation clips to include in this scene's splashpack. Multiple can play simultaneously at runtime.")]
         public PSXAnimationClip[] Animations = new PSXAnimationClip[0];
 
+        [Header("World Streaming")]
+        [Tooltip("For big open worlds. Static scenery loads from disc in regions as the player " +
+                 "gets close and unloads behind them, so the scene uses less RAM. Objects with a " +
+                 "script, animation, cutscene track, interaction or skinning always stay loaded.")]
+        public bool StreamWorldGeometry = false;
+        [Tooltip("How wide each loadable piece of the world is, in Unity units. Smaller pieces use less " +
+                 "memory but are read from disc more often. Leave at 0 and SplashEdit picks the size " +
+                 "that uses the least memory.")]
+        public float StreamRegionSize = 0f;
+        [Tooltip("How close the player has to get before a piece of the world loads, in Unity units. " +
+                 "Leave at 0 and SplashEdit uses the distance the console can actually draw (the fog " +
+                 "distance when fog is on), plus a little margin so nothing pops in.")]
+        public float StreamLoadDistance = 0f;
+        [Tooltip("Show the streaming regions in the Scene view: each region's outline and size, objects " +
+                 "that always stay loaded (orange), and the load distance around the selected object, " +
+                 "or around the Scene camera when nothing is selected.")]
+        public bool PreviewStreaming = true;
+
         [Header("Loading Screen")]
         [Tooltip("Optional prefab containing a PSXCanvas to use as a loading screen when loading this scene.\n" +
                  "The canvas may contain a PSXUIProgressBar named 'loading' which will be automatically\n" +
@@ -89,6 +107,8 @@ namespace SplashEdit.RuntimeCode
         /// <summary>Audio clip ADPCM sizes from the last export.</summary>
         public long[] LastExportAudioSizes => _lastAudioSizes;
         private long[] _lastAudioSizes;
+        /// <summary>World streaming numbers from the last export, or null if it did not stream.</summary>
+        public PSXWorldStreamStats LastExportStreamStats { get; private set; }
         /// <summary>Total triangle count from the last export.</summary>
         public int LastExportTriangleCount
         {
@@ -556,6 +576,9 @@ namespace SplashEdit.RuntimeCode
                 // writer emits. Null when the scene has no tilemap.
                 tilemap = PSXTilemapExporter.Flatten(_spriteSheets),
                 pointLights = _pointLights,
+                streamWorld = StreamWorldGeometry,
+                streamRegionSize = StreamRegionSize,
+                streamLoadDistance = StreamLoadDistance,
             };
 
             PSXSceneWriter.Write(path, in scene, (msg, type) =>
@@ -567,6 +590,7 @@ namespace SplashEdit.RuntimeCode
                     default:              Debug.Log(msg);        break;
                 }
             });
+            LastExportStreamStats = PSXSceneWriter.LastStreamStats;
 #endif
         }
 

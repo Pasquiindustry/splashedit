@@ -94,7 +94,19 @@ namespace SplashEdit.RuntimeCode
             // Point lights (v24). Null or empty writes a v23 pack, byte for byte
             // what this writer produced before lights existed.
             public Light[] pointLights;
+            // Streamed world geometry. Off leaves the stream table offset 0 and
+            // the pack byte-identical to a scene without it. Sizes are in Unity
+            // units, 0 = automatic.
+            public bool streamWorld;
+            public float streamRegionSize;
+            public float streamLoadDistance;
         }
+
+        /// <summary>
+        /// Streaming numbers from the most recent <see cref="Write"/>, or null if
+        /// that scene did not stream.
+        /// </summary>
+        public static PSXWorldStreamStats LastStreamStats { get; private set; }
 
         // --- Offset bookkeeping ---
 
@@ -178,6 +190,7 @@ namespace SplashEdit.RuntimeCode
                 }
             }
 
+            PSXWorldStreamPlan streamPlanOut = null;
             using (BinaryWriter writer = new BinaryWriter(
                 new System.IO.FileStream(path, FileMode.Create, FileAccess.Write, FileShare.ReadWrite)))
             {
@@ -399,6 +412,10 @@ namespace SplashEdit.RuntimeCode
                     }
                 }
 
+                PSXWorldStreamPlan streamPlan = scene.streamWorld ? PlanStreaming(scene, skinnedProxySet, log) : null;
+                LastStreamStats = streamPlan?.Stats;
+                streamPlanOut = streamPlan;
+
                 Dictionary<PSXObjectExporter, int> interactableIndices = new Dictionary<PSXObjectExporter, int>();
                 for (int i = 0; i < scene.interactables.Length; i++)
                 {
@@ -406,8 +423,9 @@ namespace SplashEdit.RuntimeCode
                     if (exp != null) interactableIndices[exp] = i;
                 }
 
-                foreach (PSXObjectExporter exporter in scene.exporters)
+                for (int exporterIdx = 0; exporterIdx < scene.exporters.Length; exporterIdx++)
                 {
+                    PSXObjectExporter exporter = scene.exporters[exporterIdx];
                     meshOffset.PlaceholderPositions.Add(writer.BaseStream.Position);
                     writer.Write((int)0); // placeholder
 
@@ -422,7 +440,10 @@ namespace SplashEdit.RuntimeCode
                         for (int c = 0; c < 3; c++)
                             writer.Write((int)rot[r, c]);
 
-                    writer.Write((ushort)exporter.Mesh.Triangles.Count);
+                    // A streamed object draws nothing until its region is resident;
+                    // the engine restores polyCount from the stream table.
+                    bool streamed = streamPlan != null && streamPlan.Streamed.Contains(exporterIdx);
+                    writer.Write((ushort)(streamed ? 0 : exporter.Mesh.Triangles.Count));
 
                     if (exporter.LuaFile != null)
                         writer.Write((short)luaFiles.IndexOf(exporter.LuaFile));
@@ -712,70 +733,21 @@ namespace SplashEdit.RuntimeCode
                     luaIdx++;
                 }
 
-                // Mesh data
-                foreach (PSXObjectExporter exporter in scene.exporters)
+                // Mesh data. Streamed objects' triangles go to the .geo file instead.
+                for (int exporterIdx = 0; exporterIdx < scene.exporters.Length; exporterIdx++)
                 {
+                    PSXObjectExporter exporter = scene.exporters[exporterIdx];
+                    if (streamPlan != null && streamPlan.Streamed.Contains(exporterIdx))
+                    {
+                        meshOffset.DataOffsets.Add(0);
+                        continue;
+                    }
                     AlignToFourBytes(writer);
                     meshOffset.DataOffsets.Add(writer.BaseStream.Position);
                     totalFaces += exporter.Mesh.Triangles.Count;
 
                     foreach (Tri tri in exporter.Mesh.Triangles)
-                    {
-                        // Vertex positions (3 x 6 bytes)
-                        WriteVertexPosition(writer, tri.v0);
-                        WriteVertexPosition(writer, tri.v1);
-                        WriteVertexPosition(writer, tri.v2);
-
-                        // Normal for v0 only
-                        WriteVertexNormals(writer, tri.v0);
-
-                        // Vertex colors (3 x 4 bytes)
-                        WriteVertexColor(writer, tri.v0);
-                        WriteVertexColor(writer, tri.v1);
-                        WriteVertexColor(writer, tri.v2);
-
-                        ushort flags = 0;
-                        if (exporter.UVOffsetMaterial == tri.TextureIndex)
-                        {
-                            flags |= 0x1;
-                        }
-
-                        if (tri.IsUntextured)
-                        {
-                            // Zero UVs
-                            writer.Write((byte)0); writer.Write((byte)0);
-                            writer.Write((byte)0); writer.Write((byte)0);
-                            writer.Write((byte)0); writer.Write((byte)0);
-                            writer.Write((ushort)0); // padding
-
-                            // Sentinel tpage = 0xFFFF marks untextured
-                            // haha funny word. Sentinel, sentinel, sentinel. I could keep saying it forever.
-                            writer.Write((ushort)0xFFFF);
-                            writer.Write((ushort)0);
-                            writer.Write((ushort)0);
-                            writer.Write(flags);
-                        }
-                        else
-                        {
-                            PSXTexture2D tex = exporter.GetTexture(tri.TextureIndex);
-                            int expander = 16 / (int)tex.BitDepth;
-
-                            WriteVertexUV(writer, tri.v0, tex, expander);
-                            WriteVertexUV(writer, tri.v1, tex, expander);
-                            WriteVertexUV(writer, tri.v2, tex, expander);
-                            writer.Write((ushort)0); // padding
-
-                            TPageAttr tpage = new TPageAttr();
-                            tpage.SetPageX(tex.TexpageX);
-                            tpage.SetPageY(tex.TexpageY);
-                            tpage.Set(tex.BitDepth.ToColorMode());
-                            tpage.SetDithering(true);
-                            writer.Write((ushort)tpage.info);
-                            writer.Write((ushort)tex.ClutPackingX);
-                            writer.Write((ushort)tex.ClutPackingY);
-                            writer.Write(flags); // flags
-                        }
-                    }
+                        WriteTri(writer, exporter, tri);
                 }
 
                 // ------------------------------------------------------
@@ -1410,9 +1382,41 @@ namespace SplashEdit.RuntimeCode
                     WriteMemcardSection(writer, scene, log);
                 }
 
+                // Streamed world geometry: the table, referenced by the header word
+                // after memcardTableOffset.
+                if (streamPlan != null)
+                {
+                    AlignToFourBytes(writer);
+                    long streamStart = writer.BaseStream.Position;
+                    WriteStreamTable(writer, streamPlan);
+                    long curPos = writer.BaseStream.Position;
+                    writer.Seek((int)memcardTableOffsetPos + 4, SeekOrigin.Begin);
+                    writer.Write((uint)streamStart);
+                    writer.Seek((int)curPos, SeekOrigin.Begin);
+                }
+
                 // Backfill live data offsets (lua, mesh - these still point within the splashpack)
                 BackfillOffsets(writer, luaOffset, "lua", log);
                 BackfillOffsets(writer, meshOffset, "mesh", log);
+            }
+
+            // Streamed geometry file (.geo). Removed when the scene does not
+            // stream, so a stale one is not baked into the disc.
+            {
+                string geoPath = System.IO.Path.ChangeExtension(path, ".geo");
+                if (streamPlanOut != null)
+                {
+                    WriteGeoFile(geoPath, scene, streamPlanOut);
+                    var st = streamPlanOut.Stats;
+                    log?.Invoke($"World streaming: {st.RegionCount} regions, {st.StreamedObjects} objects streamed, " +
+                                $"{st.ResidentObjects} always loaded, {st.SlotCount} slots of {st.SlotBytes / 1024} KB = " +
+                                $"{st.PoolBytes / 1024} KB streaming memory, " +
+                                $"{st.RamSaved / 1024} KB RAM saved.", LogType.Log);
+                }
+                else if (File.Exists(geoPath))
+                {
+                    File.Delete(geoPath);
+                }
             }
 
             // --------------------------------------------------------------
@@ -1536,6 +1540,163 @@ namespace SplashEdit.RuntimeCode
         // Static helpers
         // ---------------------------------------------------------------
 
+        // Same planner the scene view preview runs, fed from the export's data.
+        private static PSXWorldStreamPlan PlanStreaming(in SceneData scene, HashSet<PSXObjectExporter> skinned,
+                                                        Action<string, LogType> log)
+        {
+            var inp = new PSXWorldStreamInputs
+            {
+                Exporters = scene.exporters,
+                TriCounts = new int[scene.exporters.Length],
+                Aabbs = new int[scene.exporters.Length][],
+                Skinned = skinned,
+                Interactables = scene.interactables,
+                Agents = scene.agents,
+                TriggerBoxes = scene.triggerBoxes,
+                Cutscenes = scene.cutscenes,
+                Animations = scene.animations,
+                SceneLuaFile = scene.sceneLuaFile,
+                GteScaling = scene.gteScaling,
+                FogEnabled = scene.fogEnabled,
+                FogDensity = scene.fogDensity,
+                RegionSize = scene.streamRegionSize,
+                LoadDistance = scene.streamLoadDistance,
+            };
+            for (int i = 0; i < scene.exporters.Length; i++)
+            {
+                inp.TriCounts[i] = scene.exporters[i].Mesh?.Triangles.Count ?? 0;
+                inp.Aabbs[i] = ComputeObjectAABB(scene.exporters[i], scene.gteScaling);
+            }
+            PSXWorldStreamPlan plan = PSXWorldStreamPlanner.Build(inp);
+            foreach (string w in plan.Warnings)
+                log?.Invoke("World streaming: " + w, LogType.Warning);
+            if (!PSXWorldStreamPlanner.IsWritable(plan))
+            {
+                log?.Invoke("World streaming: exporting this scene without streaming.", LogType.Warning);
+                return null;
+            }
+            return plan;
+        }
+
+        // SPLASHPACKStreamTable, its regions, then the object refs (streamplanner.hh).
+        private static void WriteStreamTable(BinaryWriter writer, PSXWorldStreamPlan plan)
+        {
+            int refCount = 0;
+            foreach (var r in plan.Regions) refCount += r.Objects.Count;
+            writer.Write((ushort)plan.Regions.Count);
+            writer.Write((ushort)refCount);
+            writer.Write((ushort)plan.SlotCount);
+            writer.Write((ushort)0);
+            writer.Write(plan.SlotBytes);
+            writer.Write(plan.LoadRadius);
+            writer.Write(plan.UnloadRadius);
+
+            int firstRef = 0;
+            foreach (var r in plan.Regions)
+            {
+                writer.Write(r.MinX);
+                writer.Write(r.MinZ);
+                writer.Write(r.MaxX);
+                writer.Write(r.MaxZ);
+                writer.Write(r.FirstSector);
+                writer.Write(r.ByteSize);
+                writer.Write((ushort)firstRef);
+                writer.Write((ushort)r.Objects.Count);
+                writer.Write((uint)0);
+                firstRef += r.Objects.Count;
+            }
+
+            foreach (var r in plan.Regions)
+            {
+                uint offset = 0;
+                foreach (int i in r.Objects)
+                {
+                    int count = plan.TriCounts[i];
+                    writer.Write((ushort)i);
+                    writer.Write((ushort)count);
+                    writer.Write(offset);
+                    offset += (uint)(count * PSXWorldStreamPlanner.BytesPerTri);
+                }
+            }
+        }
+
+        // Each region's objects' Tri records back to back, padded to a sector.
+        private static void WriteGeoFile(string geoPath, in SceneData scene, PSXWorldStreamPlan plan)
+        {
+            using (BinaryWriter gw = new BinaryWriter(
+                new System.IO.FileStream(geoPath, FileMode.Create, FileAccess.Write, FileShare.ReadWrite)))
+            {
+                foreach (var r in plan.Regions)
+                {
+                    long start = gw.BaseStream.Position;
+                    foreach (int i in r.Objects)
+                        foreach (Tri tri in scene.exporters[i].Mesh.Triangles)
+                            WriteTri(gw, scene.exporters[i], tri);
+                    long pad = start + r.ByteSize - gw.BaseStream.Position;
+                    if (pad > 0) gw.Write(new byte[pad]);
+                }
+            }
+        }
+
+        // One 52-byte Tri record, as the main pack and the .geo regions both store it.
+        private static void WriteTri(BinaryWriter writer, PSXObjectExporter exporter, Tri tri)
+        {
+            // Vertex positions (3 x 6 bytes)
+            WriteVertexPosition(writer, tri.v0);
+            WriteVertexPosition(writer, tri.v1);
+            WriteVertexPosition(writer, tri.v2);
+
+            // Normal for v0 only
+            WriteVertexNormals(writer, tri.v0);
+
+            // Vertex colors (3 x 4 bytes)
+            WriteVertexColor(writer, tri.v0);
+            WriteVertexColor(writer, tri.v1);
+            WriteVertexColor(writer, tri.v2);
+
+            ushort flags = 0;
+            if (exporter.UVOffsetMaterial == tri.TextureIndex)
+            {
+                flags |= 0x1;
+            }
+
+            if (tri.IsUntextured)
+            {
+                // Zero UVs
+                writer.Write((byte)0); writer.Write((byte)0);
+                writer.Write((byte)0); writer.Write((byte)0);
+                writer.Write((byte)0); writer.Write((byte)0);
+                writer.Write((ushort)0); // padding
+
+                // Sentinel tpage = 0xFFFF marks untextured
+                // haha funny word. Sentinel, sentinel, sentinel. I could keep saying it forever.
+                writer.Write((ushort)0xFFFF);
+                writer.Write((ushort)0);
+                writer.Write((ushort)0);
+                writer.Write(flags);
+            }
+            else
+            {
+                PSXTexture2D tex = exporter.GetTexture(tri.TextureIndex);
+                int expander = 16 / (int)tex.BitDepth;
+
+                WriteVertexUV(writer, tri.v0, tex, expander);
+                WriteVertexUV(writer, tri.v1, tex, expander);
+                WriteVertexUV(writer, tri.v2, tex, expander);
+                writer.Write((ushort)0); // padding
+
+                TPageAttr tpage = new TPageAttr();
+                tpage.SetPageX(tex.TexpageX);
+                tpage.SetPageY(tex.TexpageY);
+                tpage.Set(tex.BitDepth.ToColorMode());
+                tpage.SetDithering(true);
+                writer.Write((ushort)tpage.info);
+                writer.Write((ushort)tex.ClutPackingX);
+                writer.Write((ushort)tex.ClutPackingY);
+                writer.Write(flags); // flags
+            }
+        }
+
         private static void WriteVertexPosition(BinaryWriter w, PSXVertex v)
         {
             w.Write((short)v.vx);
@@ -1578,7 +1739,24 @@ namespace SplashEdit.RuntimeCode
             }
         }
 
+        /// <summary>
+        /// The object AABB exactly as WriteObjectAABB writes it (fp12, PS1 space:
+        /// minX, minY, minZ, maxX, maxY, maxZ), or null if the object has no mesh.
+        /// </summary>
+        internal static int[] ComputeObjectAABB(PSXObjectExporter exporter, float gte)
+        {
+            MeshFilter mf = exporter.GetComponent<MeshFilter>();
+            Mesh mesh = mf?.sharedMesh;
+            return mesh != null ? ComputeWorldAABB(exporter, mesh.bounds, gte) : null;
+        }
+
         private static void WriteWorldAABB(BinaryWriter writer, PSXObjectExporter exporter, Bounds localBounds, float gte)
+        {
+            foreach (int v in ComputeWorldAABB(exporter, localBounds, gte))
+                writer.Write(v);
+        }
+
+        private static int[] ComputeWorldAABB(PSXObjectExporter exporter, Bounds localBounds, float gte)
         {
             Vector3 ext = localBounds.extents;
             Vector3 center = localBounds.center;
@@ -1599,12 +1777,15 @@ namespace SplashEdit.RuntimeCode
             }
 
             // PS1 coordinate space (negate Y, swap min/max)
-            writer.Write(PSXTrig.ConvertWorldToFixed12(aabbMin.x / gte));
-            writer.Write(PSXTrig.ConvertWorldToFixed12(-aabbMax.y / gte));
-            writer.Write(PSXTrig.ConvertWorldToFixed12(aabbMin.z / gte));
-            writer.Write(PSXTrig.ConvertWorldToFixed12(aabbMax.x / gte));
-            writer.Write(PSXTrig.ConvertWorldToFixed12(-aabbMin.y / gte));
-            writer.Write(PSXTrig.ConvertWorldToFixed12(aabbMax.z / gte));
+            return new int[]
+            {
+                PSXTrig.ConvertWorldToFixed12(aabbMin.x / gte),
+                PSXTrig.ConvertWorldToFixed12(-aabbMax.y / gte),
+                PSXTrig.ConvertWorldToFixed12(aabbMin.z / gte),
+                PSXTrig.ConvertWorldToFixed12(aabbMax.x / gte),
+                PSXTrig.ConvertWorldToFixed12(-aabbMin.y / gte),
+                PSXTrig.ConvertWorldToFixed12(aabbMax.z / gte),
+            };
         }
 
         private static void AlignToFourBytes(BinaryWriter writer)
