@@ -9,6 +9,7 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using SplashEdit.Core;
 using SplashEdit.RuntimeCode;
 using Debug = UnityEngine.Debug;
 
@@ -1438,6 +1439,14 @@ namespace SplashEdit.EditorCode
             // Save current scene
             string currentScenePath = SceneManager.GetActiveScene().path;
 
+            // What the exported scenes use, to build only those engine features.
+            // If any scene cannot be scanned the engine is built whole.
+            var sceneFacts = new List<SceneFacts>();
+            var luaSources = new Dictionary<string, string>();
+            bool featureScanOk = true;
+            if (File.Exists(SplashBuildPaths.EngineFeaturesPath))
+                File.Delete(SplashBuildPaths.EngineFeaturesPath);
+
             bool success = true;
             for (int i = 0; i < _sceneList.Count; i++)
             {
@@ -1470,6 +1479,19 @@ namespace SplashEdit.EditorCode
                     string loaderPath = null;
                     exporter.ExportToPath(outputPath);
                     Log($"Exported '{scene.name}' -> {Path.GetFileName(outputPath)}", LogType.Log);
+
+                    try
+                    {
+                        var facts = SceneFacts.FromSplashpack(scene.name, File.ReadAllBytes(outputPath));
+                        facts.LoadingScreen = exporter.LoadingScreenPrefab != null;
+                        sceneFacts.Add(facts);
+                        CollectSceneLua(exporter, luaSources);
+                    }
+                    catch (Exception scanEx)
+                    {
+                        Log($"Could not scan '{scene.name}' for engine features, building all of them: {scanEx.Message}", LogType.Warning);
+                        featureScanOk = false;
+                    }
 
                     // Export loading screen if assigned
                     if (exporter.LoadingScreenPrefab != null)
@@ -1520,6 +1542,9 @@ namespace SplashEdit.EditorCode
             // Write manifest (simple binary: scene count + list of filenames)
             WriteManifest();
 
+            if (success && featureScanOk)
+                WriteEngineFeatures(EngineFeatures.Compute(sceneFacts, luaSources));
+
             EditorUtility.ClearProgressBar();
 
             // Reopen orignal scene
@@ -1529,6 +1554,43 @@ namespace SplashEdit.EditorCode
             }
 
             return success;
+        }
+
+        // The Lua the scene writer embeds: object, scene and trigger box scripts.
+        private static void CollectSceneLua(PSXSceneExporter exporter, Dictionary<string, string> sources)
+        {
+            void Add(LuaFile lua)
+            {
+                if (lua == null || sources.ContainsValue(lua.LuaScript)) return;
+                string key = lua.name;
+                for (int n = 2; sources.ContainsKey(key); n++) key = $"{lua.name} ({n})";
+                sources[key] = lua.LuaScript;
+            }
+            Add(exporter.SceneLuaFile);
+            foreach (var obj in UnityEngine.Object.FindObjectsByType<PSXObjectExporter>(FindObjectsSortMode.None))
+                Add(obj.LuaFile);
+            foreach (var tb in UnityEngine.Object.FindObjectsByType<PSXTriggerBox>(FindObjectsSortMode.None))
+                Add(tb.LuaFile);
+        }
+
+        private static void WriteEngineFeatures(FeatureSet features)
+        {
+            var lines = new List<string> { features.MakeValue };
+            lines.AddRange(features.Describe());
+            File.WriteAllLines(SplashBuildPaths.EngineFeaturesPath, lines);
+            Log($"Engine features: {features.MakeValue}\n  " + string.Join("\n  ", lines.Skip(1)),
+                features.Features.Any(f => f.Warning != null) ? LogType.Warning : LogType.Log);
+        }
+
+        // FEATURES= for make, from the last export. Without one the engine is
+        // built whole.
+        private static string EngineFeaturesArg()
+        {
+            string path = SplashBuildPaths.EngineFeaturesPath;
+            if (!File.Exists(path)) return "";
+            string value = File.ReadLines(path).FirstOrDefault()?.Trim();
+            if (string.IsNullOrEmpty(value)) return "";
+            return " FEATURES=" + value.Replace(' ', ',');
         }
 
         /// <summary>
@@ -2038,6 +2100,8 @@ namespace SplashEdit.EditorCode
                 buildArg += " PROFILER=1";
 
             buildArg += $" OT_SIZE={SplashSettings.OtSize} BUMP_SIZE={SplashSettings.BumpSize}";
+
+            buildArg += EngineFeaturesArg();
 
             // Use noparser Lua library when bytecode was pre-compiled
             string noparserPrefix = "";
