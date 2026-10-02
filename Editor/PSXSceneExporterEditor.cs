@@ -20,6 +20,7 @@ namespace SplashEdit.EditorCode
         private SerializedProperty loadingScreenProp;
         private SerializedProperty previewBVHProp;
         private SerializedProperty previewRoomsPortalsProp;
+        private SerializedProperty previewPointLightsProp;
         private SerializedProperty bvhDepthProp;
 
         private bool showFog = true;
@@ -41,6 +42,7 @@ namespace SplashEdit.EditorCode
             loadingScreenProp = serializedObject.FindProperty("LoadingScreenPrefab");
             previewBVHProp = serializedObject.FindProperty("PreviewBVH");
             previewRoomsPortalsProp = serializedObject.FindProperty("PreviewRoomsPortals");
+            previewPointLightsProp = serializedObject.FindProperty("PreviewPointLights");
             bvhDepthProp = serializedObject.FindProperty("BVHPreviewDepth");
         }
 
@@ -214,6 +216,9 @@ namespace SplashEdit.EditorCode
             if (previewBVHProp.boolValue)
                 EditorGUILayout.PropertyField(bvhDepthProp, new GUIContent("BVH Depth"));
             EditorGUILayout.PropertyField(previewRoomsPortalsProp, new GUIContent("Preview Rooms/Portals"));
+            EditorGUILayout.PropertyField(previewPointLightsProp, new GUIContent("Preview Point Lights",
+                "Scene view: mark meshes reached by more Realtime/Mixed Point Lights than the PS1 applies (4), " +
+                "and draw lines to the lights of the selected mesh."));
             EditorGUI.indentLevel--;
         }
 

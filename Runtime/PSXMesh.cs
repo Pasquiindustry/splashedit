@@ -86,11 +86,13 @@ namespace SplashEdit.RuntimeCode
         /// <summary>
         /// Creates a PSXMesh from a Unity Renderer by extracting its mesh and materials.
         /// </summary>
+        /// <param name="bakePointLights">False when the mesh is lit at runtime, which leaves runtime (Realtime or Mixed) point lights out of the bake.</param>
         public static PSXMesh CreateFromUnityRenderer(Renderer renderer, float GTEScaling, Transform transform, List<PSXTexture2D> textures,
-            VertexColorMode colorMode = VertexColorMode.BakedLighting, Color32? flatColor = null, bool smoothNormals = true)
+            VertexColorMode colorMode = VertexColorMode.BakedLighting, Color32? flatColor = null, bool smoothNormals = true,
+            bool bakePointLights = true)
         {
             Mesh mesh = renderer.GetComponent<MeshFilter>().sharedMesh;
-            return BuildFromMesh(mesh, renderer, GTEScaling, transform, textures, colorMode, flatColor, smoothNormals);
+            return BuildFromMesh(mesh, renderer, GTEScaling, transform, textures, colorMode, flatColor, smoothNormals, bakePointLights);
         }
 
         /// <summary>
@@ -103,7 +105,8 @@ namespace SplashEdit.RuntimeCode
         }
 
         private static PSXMesh BuildFromMesh(Mesh mesh, Renderer renderer, float GTEScaling, Transform transform, List<PSXTexture2D> textures,
-            VertexColorMode colorMode = VertexColorMode.BakedLighting, Color32? flatColor = null, bool smoothNormals = true)
+            VertexColorMode colorMode = VertexColorMode.BakedLighting, Color32? flatColor = null, bool smoothNormals = true,
+            bool bakePointLights = true)
         {
             PSXMesh psxMesh = new PSXMesh { Triangles = new List<Tri>() };
             Material[] materials = renderer.sharedMaterials;
@@ -119,7 +122,8 @@ namespace SplashEdit.RuntimeCode
 
             // Cache lights once for the entire mesh (only needed for baked lighting)
             Light[] sceneLights = colorMode == VertexColorMode.BakedLighting
-                ? Object.FindObjectsByType<Light>(FindObjectsSortMode.None).Where(l => l.enabled).ToArray()
+                ? Object.FindObjectsByType<Light>(FindObjectsSortMode.None)
+                    .Where(l => l.enabled && (bakePointLights || !PSXPointLightExporter.IsRuntime(l))).ToArray()
                 : null;
 
             // Mesh vertex colors (only for MeshVertexColors mode)

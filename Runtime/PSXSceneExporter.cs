@@ -112,6 +112,7 @@ namespace SplashEdit.RuntimeCode
         private PSXCanvasData[] _canvases;
         private PSXFontData[] _fonts;
         private List<PSXSpriteSheet> _spriteSheets;
+        private Light[] _pointLights;
 
         private PSXData _psxData;
 
@@ -133,6 +134,8 @@ namespace SplashEdit.RuntimeCode
 
         public bool PreviewBVH = true;
         public bool PreviewRoomsPortals = true;
+        [Tooltip("Scene view: mark meshes reached by more Realtime/Mixed Point Lights than the PS1 applies (4), and draw lines to the lights of the selected mesh.")]
+        public bool PreviewPointLights = true;
 
         public int BVHPreviewDepth = 9999;
 
@@ -217,6 +220,10 @@ namespace SplashEdit.RuntimeCode
             _exporters = exportersList.ToArray();
             try
             {
+            // Point lights decide, per mesh, whether it is lit at runtime, and so
+            // whether they are baked into it: this has to come before CreatePSXMesh.
+            _pointLights = PSXPointLightExporter.Collect();
+            PSXPointLightExporter.Resolve(_exporters, _pointLights, proxySet);
             for (int i = 0; i < _exporters.Length; i++)
             {
                 PSXObjectExporter exp = _exporters[i];
@@ -548,6 +555,7 @@ namespace SplashEdit.RuntimeCode
                 // above), so the tileset index the map stores is the one the
                 // writer emits. Null when the scene has no tilemap.
                 tilemap = PSXTilemapExporter.Flatten(_spriteSheets),
+                pointLights = _pointLights,
             };
 
             PSXSceneWriter.Write(path, in scene, (msg, type) =>
