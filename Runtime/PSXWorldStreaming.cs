@@ -270,6 +270,10 @@ namespace SplashEdit.RuntimeCode
             long step = Math.Max(Math.Max(1L, cell / 2), Math.Max((long)maxX - minX, (long)maxZ - minZ) / 64);
             long reach = unload / cell + 2;  // a region's bounds stay near its own cell
             long unloadSq = unload * unload;
+            // With cells much smaller than the unload radius (a small scene, or a
+            // tiny automatic cell) the neighbourhood is millions of cells; walking
+            // the regions themselves is then far cheaper.
+            bool scanAll = (2 * reach + 1) * (2 * reach + 1) > g.Regions.Count;
             int worst = 0;
             for (long z = minZ; z <= maxZ + step - 1; z += step)
             {
@@ -277,13 +281,21 @@ namespace SplashEdit.RuntimeCode
                 {
                     long cx = (Math.Min(x, maxX) - minX) / cell, cz = (Math.Min(z, maxZ) - minZ) / cell;
                     int count = 0;
-                    for (long dz = -reach; dz <= reach; dz++)
-                        for (long dx = -reach; dx <= reach; dx++)
-                        {
-                            if (cx + dx < 0 || cz + dz < 0) continue;
-                            if (!g.ByCell.TryGetValue((cz + dz) * Grid.Cols + cx + dx, out var r)) continue;
+                    if (scanAll)
+                    {
+                        foreach (var r in g.Regions)
                             if (DistSq(r, x, z) <= unloadSq) count++;
-                        }
+                    }
+                    else
+                    {
+                        for (long dz = -reach; dz <= reach; dz++)
+                            for (long dx = -reach; dx <= reach; dx++)
+                            {
+                                if (cx + dx < 0 || cz + dz < 0) continue;
+                                if (!g.ByCell.TryGetValue((cz + dz) * Grid.Cols + cx + dx, out var r)) continue;
+                                if (DistSq(r, x, z) <= unloadSq) count++;
+                            }
+                    }
                     if (count > worst) worst = count;
                 }
             }
