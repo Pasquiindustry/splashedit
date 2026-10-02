@@ -18,6 +18,10 @@ namespace SplashEdit.EditorCode
         private SerializedProperty cutscenesProp;
         private SerializedProperty animationsProp;
         private SerializedProperty loadingScreenProp;
+        private SerializedProperty streamWorldProp;
+        private SerializedProperty streamRegionSizeProp;
+        private SerializedProperty streamLoadDistanceProp;
+        private SerializedProperty previewStreamingProp;
         private SerializedProperty previewBVHProp;
         private SerializedProperty previewRoomsPortalsProp;
         private SerializedProperty previewPointLightsProp;
@@ -27,6 +31,7 @@ namespace SplashEdit.EditorCode
         private bool showNetworking = true; // Added: Foldout toggle for Networking
         private bool showCutscenes = true;
         private bool showDebug = false;
+        private bool showStreamingAdvanced = false;
 
         private void OnEnable()
         {
@@ -40,6 +45,10 @@ namespace SplashEdit.EditorCode
             cutscenesProp = serializedObject.FindProperty("Cutscenes");
             animationsProp = serializedObject.FindProperty("Animations");
             loadingScreenProp = serializedObject.FindProperty("LoadingScreenPrefab");
+            streamWorldProp = serializedObject.FindProperty("StreamWorldGeometry");
+            streamRegionSizeProp = serializedObject.FindProperty("StreamRegionSize");
+            streamLoadDistanceProp = serializedObject.FindProperty("StreamLoadDistance");
+            previewStreamingProp = serializedObject.FindProperty("PreviewStreaming");
             previewBVHProp = serializedObject.FindProperty("PreviewBVH");
             previewRoomsPortalsProp = serializedObject.FindProperty("PreviewRoomsPortals");
             previewPointLightsProp = serializedObject.FindProperty("PreviewPointLights");
@@ -63,6 +72,8 @@ namespace SplashEdit.EditorCode
             DrawNetworkingSection(); // Added: Draw Networking section
             PSXEditorStyles.DrawSeparator(6, 6);
             DrawFogSection(exporter);
+            PSXEditorStyles.DrawSeparator(6, 6);
+            DrawStreamingSection(exporter);
             PSXEditorStyles.DrawSeparator(6, 6);
             DrawCutscenesSection();
             PSXEditorStyles.DrawSeparator(6, 6);
@@ -167,6 +178,59 @@ namespace SplashEdit.EditorCode
                 EditorGUI.indentLevel--;
             }
 
+            EditorGUI.indentLevel--;
+        }
+
+        private void DrawStreamingSection(PSXSceneExporter exporter)
+        {
+            EditorGUILayout.PropertyField(streamWorldProp, new GUIContent("Stream World Geometry",
+                "For big open worlds. Scenery loads from disc piece by piece as the player gets close and is " +
+                "dropped again behind them, so the scene needs much less RAM. Objects with a script, an " +
+                "animation or cutscene track, an interaction or skinning always stay loaded."));
+            if (!streamWorldProp.boolValue) return;
+
+            EditorGUI.indentLevel++;
+            EditorGUILayout.PropertyField(previewStreamingProp, new GUIContent("Show in Scene View",
+                "Draw each region's outline and size, objects that always stay loaded (orange), and the load " +
+                "distance around the selected object, or around the Scene camera when nothing is selected."));
+
+            showStreamingAdvanced = EditorGUILayout.Foldout(showStreamingAdvanced, "Advanced", true);
+            if (showStreamingAdvanced)
+            {
+                EditorGUI.indentLevel++;
+                EditorGUILayout.PropertyField(streamRegionSizeProp, new GUIContent("Region Size",
+                    "How wide each loadable piece of the world is, in Unity units. Smaller pieces use less memory " +
+                    "but are read from disc more often. 0 = SplashEdit picks the size that uses the least memory."));
+                EditorGUILayout.PropertyField(streamLoadDistanceProp, new GUIContent("Load Distance",
+                    "How close the player has to get before a piece loads, in Unity units. 0 = the distance the " +
+                    "console can draw (the fog distance when fog is on), plus a margin so nothing pops in."));
+                if (streamRegionSizeProp.floatValue < 0f) streamRegionSizeProp.floatValue = 0f;
+                if (streamLoadDistanceProp.floatValue < 0f) streamLoadDistanceProp.floatValue = 0f;
+                EditorGUI.indentLevel--;
+            }
+
+            // Live, from the same planner the export runs.
+            serializedObject.ApplyModifiedProperties();
+            var plan = PSXWorldStreamPreview.GetPlan(exporter);
+            var st = plan.Stats;
+            if (plan.Regions.Count > 0)
+            {
+                EditorGUILayout.LabelField(
+                    $"<b>{st.RegionCount}</b> regions, <b>{st.StreamedObjects}</b> objects stream, " +
+                    $"<b>{st.ResidentObjects}</b> always loaded",
+                    PSXEditorStyles.RichLabel);
+                EditorGUILayout.LabelField(
+                    $"Streaming memory <b>{st.PoolBytes / 1024} KB</b> ({st.SlotCount} x {st.SlotBytes / 1024} KB), " +
+                    (st.RamSaved > 0
+                        ? $"saves <b>{st.RamSaved / 1024} KB</b> of RAM"
+                        : $"<color=#ffaa44>uses {-st.RamSaved / 1024} KB more RAM than not streaming</color>"),
+                    PSXEditorStyles.RichLabel);
+                EditorGUILayout.LabelField(
+                    $"<color=#aaaaaa>Regions {st.RegionSize:F0} units wide, load within {st.LoadDistance:F0} units</color>",
+                    PSXEditorStyles.RichLabel);
+            }
+            foreach (string w in plan.Warnings)
+                EditorGUILayout.HelpBox(w, MessageType.Warning);
             EditorGUI.indentLevel--;
         }
 

@@ -128,6 +128,15 @@ namespace SplashEdit.EditorCode
         }
 
         /// <summary>
+        /// Gets the streamed world geometry path for a scene by index. Only
+        /// written when the scene has "Stream World Geometry" ticked.
+        /// </summary>
+        public static string GetSceneGeoPath(int sceneIndex, string sceneName)
+        {
+            return Path.Combine(BuildOutputDir, $"scene_{sceneIndex}.geo");
+        }
+
+        /// <summary>
         /// Default license file path (SPLASHLICENSE.DAT) shipped in the package Data folder.
         /// Resolved relative to the Unity project so it works on any machine.
         /// </summary>
