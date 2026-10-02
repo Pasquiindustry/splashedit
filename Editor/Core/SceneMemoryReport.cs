@@ -33,6 +33,10 @@ namespace SplashEdit.EditorCode
 
         // --- CD Storage ---
         public long loaderPackSize;
+        public long geoFileSize;            // streamed world geometry, 0 if none
+
+        // --- World streaming (null when the scene does not stream) ---
+        public SplashEdit.RuntimeCode.PSXWorldStreamStats stream;
 
         // --- Constants ---
         public const long TOTAL_RAM         = 2 * 1024 * 1024;
@@ -59,14 +63,15 @@ namespace SplashEdit.EditorCode
         public bool IsHeapCritical => EstimatedHeapFree < 64 * 1024;    // < 64KB free
 
         /// <summary>RAM used by scene data (live portion of splashpack).</summary>
-        public long SceneRamUsage => splashpackLiveSize > 0 ? splashpackLiveSize : splashpackFileSize;
+        public long SceneRamUsage => (splashpackLiveSize > 0 ? splashpackLiveSize : splashpackFileSize) +
+                                     (stream != null ? stream.PoolBytes : 0);
 
         /// <summary>Total estimated RAM: fixed overhead + scene data. Does NOT include code/BSS.</summary>
         public long TotalRamUsage => FixedOverhead + SceneRamUsage;
 
         public long TotalVramUsed => framebufferSize + textureAtlasSize + clutSize + fontVramSize + SYSTEM_FONT_VRAM;
         public long TotalSpuUsed  => audioDataSize;
-        public long TotalDiscSize => splashpackFileSize + loaderPackSize;
+        public long TotalDiscSize => splashpackFileSize + loaderPackSize + geoFileSize;
 
         public float RamPercent  => Mathf.Clamp01((float)TotalRamUsage / USABLE_RAM) * 100f;
         public float VramPercent => Mathf.Clamp01((float)TotalVramUsed / TOTAL_VRAM) * 100f;
@@ -99,15 +104,19 @@ namespace SplashEdit.EditorCode
             SplashEdit.RuntimeCode.TextureAtlas[] atlases,
             long[] audioExportSizes,
             SplashEdit.RuntimeCode.PSXFontData[] fonts,
-            int triangleCount = 0)
+            int triangleCount = 0,
+            SplashEdit.RuntimeCode.PSXWorldStreamStats streamStats = null)
         {
-            var r = new SceneMemoryReport { sceneName = sceneName };
+            var r = new SceneMemoryReport { sceneName = sceneName, stream = streamStats };
 
             // -- File sizes --
             if (File.Exists(splashpackPath))
                 r.splashpackFileSize = new FileInfo(splashpackPath).Length;
             if (!string.IsNullOrEmpty(loaderPackPath) && File.Exists(loaderPackPath))
                 r.loaderPackSize = new FileInfo(loaderPackPath).Length;
+            string geoPath = Path.ChangeExtension(splashpackPath, ".geo");
+            if (streamStats != null && File.Exists(geoPath))
+                r.geoFileSize = new FileInfo(geoPath).Length;
 
             r.triangleCount = triangleCount;
 

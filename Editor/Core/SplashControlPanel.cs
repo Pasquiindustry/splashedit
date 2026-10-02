@@ -1123,6 +1123,7 @@ namespace SplashEdit.EditorCode
                 GUILayout.Label(
                     $"Scene: {FormatBytes(report.splashpackFileSize)}" +
                     (report.loaderPackSize > 0 ? $"  |  Loader: {FormatBytes(report.loaderPackSize)}" : "") +
+                    (report.geoFileSize > 0 ? $"  |  Streamed world: {FormatBytes(report.geoFileSize)}" : "") +
                     $"  |  Total: {FormatBytes(report.TotalDiscSize)}",
                     EditorStyles.miniLabel);
                 EditorGUILayout.EndHorizontal();
@@ -1135,6 +1136,19 @@ namespace SplashEdit.EditorCode
                     $"<b>{report.atlasCount}</b> atlases  |  " +
                     $"<b>{report.clutCount}</b> CLUTs",
                     PSXEditorStyles.RichLabel);
+
+                if (report.stream != null)
+                {
+                    var st = report.stream;
+                    EditorGUILayout.LabelField(
+                        $"World streaming: <b>{st.RegionCount}</b> regions  |  " +
+                        $"<b>{st.StreamedObjects}</b> objects streamed, <b>{st.ResidentObjects}</b> always loaded  |  " +
+                        $"streaming memory <b>{FormatBytes(st.PoolBytes)}</b>  |  " +
+                        (st.RamSaved > 0
+                            ? $"saves <b>{FormatBytes(st.RamSaved)}</b> of RAM"
+                            : $"<color=#ffaa44>costs {FormatBytes(-st.RamSaved)} more RAM than not streaming</color>"),
+                        PSXEditorStyles.RichLabel);
+                }
 
                 if (report.IsHeapCritical)
                     EditorGUILayout.HelpBox(
@@ -1487,7 +1501,8 @@ namespace SplashEdit.EditorCode
                             exporter.LastExportAtlases,
                             exporter.LastExportAudioSizes,
                             exporter.LastExportFonts,
-                            exporter.LastExportTriangleCount);
+                            exporter.LastExportTriangleCount,
+                            exporter.LastExportStreamStats);
                         _memoryReports.Add(report);
                     }
                     catch (Exception reportEx)
@@ -2504,6 +2519,13 @@ namespace SplashEdit.EditorCode
                     {
                         string isoName = $"SCENE_{i}.SPU";
                         xml.AppendLine($"        <file name=\"{isoName}\" source=\"{EscapeXml(spuFile)}\"/>");
+                    }
+
+                    string geoFile = SplashBuildPaths.GetSceneGeoPath(i, _sceneList[i].name);
+                    if (File.Exists(geoFile))
+                    {
+                        string isoName = $"SCENE_{i}.GEO";
+                        xml.AppendLine($"        <file name=\"{isoName}\" source=\"{EscapeXml(geoFile)}\"/>");
                     }
 
                     string loadingPack = SplashBuildPaths.GetSceneLoaderPackPath(i, _sceneList[i].name);
