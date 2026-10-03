@@ -36,7 +36,7 @@ namespace SplashEdit.RuntimeCode
         public LuaFile LuaFile => luaFile;
 
         [FormerlySerializedAs("IsActive")]
-        [SerializeField] private bool isActive = true; 
+        [SerializeField] private bool isActive = true;
         public bool IsActive => isActive;
 
         public List<PSXTexture2D> Textures { get; set; } = new List<PSXTexture2D>();
@@ -78,7 +78,11 @@ namespace SplashEdit.RuntimeCode
         public bool IsPlatform => isPlatform;
         public int UVOffsetMaterial => uvOffsetMaterial;
 
+#if UNITY_6000_4_OR_NEWER
+        private readonly Dictionary<(EntityId, PSXBPP), PSXTexture2D> cache = new();
+#else
         private readonly Dictionary<(int, PSXBPP), PSXTexture2D> cache = new();
+#endif
 
         public void CreatePSXTextures2D()
         {
@@ -98,7 +102,11 @@ namespace SplashEdit.RuntimeCode
 
                 if (tex2D == null) continue;
 
+#if UNITY_6000_4_OR_NEWER
+                if (cache.TryGetValue((tex2D.GetEntityId(), bitDepth), out var cached))
+#else
                 if (cache.TryGetValue((tex2D.GetInstanceID(), bitDepth), out var cached))
+#endif
                 {
                     Textures.Add(cached);
                 }
@@ -106,7 +114,11 @@ namespace SplashEdit.RuntimeCode
                 {
                     var tex = PSXTexture2D.CreateFromTexture2D(tex2D, bitDepth);
                     tex.OriginalTexture = tex2D;
+#if UNITY_6000_4_OR_NEWER
+                    cache.Add((tex2D.GetEntityId(), bitDepth), tex);
+#else
                     cache.Add((tex2D.GetInstanceID(), bitDepth), tex);
+#endif
                     Textures.Add(tex);
                 }
             }

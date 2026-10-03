@@ -548,7 +548,7 @@ namespace SplashEdit.EditorCode
             GUILayout.FlexibleSpace();
             if (_hasPsxavenc)
             {
-                PSXEditorStyles.DrawStatusBadge("Installed", PSXEditorStyles.Success);
+                PSXEditorStyles.DrawStatusBadge("Ready", PSXEditorStyles.Success);
             }
             else if (!_hasPsxavencDeps && Application.platform == RuntimePlatform.OSXEditor)
             {
@@ -582,7 +582,7 @@ namespace SplashEdit.EditorCode
             }
             else
             {
-                PSXEditorStyles.DrawStatusBadge("Installed", PSXEditorStyles.Success);
+                PSXEditorStyles.DrawStatusBadge("Ready", PSXEditorStyles.Success);
             }
             EditorGUILayout.EndHorizontal();
 
@@ -2742,7 +2742,7 @@ namespace SplashEdit.EditorCode
 
             string reduxBin = SplashSettings.PCSXReduxPath;
             _hasRedux = !string.IsNullOrEmpty(reduxBin) && File.Exists(reduxBin);
-            _reduxVersion = _hasRedux ? "Installed" : "";
+            _reduxVersion = _hasRedux ? "Ready" : "";
 
             _hasPsxavenc = PSXAudioConverter.IsInstalled();
 

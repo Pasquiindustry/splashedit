@@ -87,7 +87,11 @@ namespace SplashEdit.RuntimeCode
             List<PSXTexture2D> uniqueTextures = new List<PSXTexture2D>();
             // Cutout is part of the key: the same source quantized with and without it
             // gives different pixels, so the two must not be merged.
+#if UNITY_6000_4_OR_NEWER
+            Dictionary<(EntityId, PSXBPP, bool), int> textureToIndexMap = new Dictionary<(EntityId, PSXBPP, bool), int>();
+#else
             Dictionary<(int, PSXBPP, bool), int> textureToIndexMap = new Dictionary<(int, PSXBPP, bool), int>();
+#endif
             // Track duplicates so we can propagate packing data after placement
             List<(PSXTexture2D duplicate, int uniqueIndex)> duplicates = new List<(PSXTexture2D, int)>();
 
@@ -115,8 +119,11 @@ namespace SplashEdit.RuntimeCode
                 // Process each texture in descending order of area.
                 foreach (var texture in group.OrderByDescending(tex => tex.QuantizedWidth * tex.Height))
                 {
+#if UNITY_6000_4_OR_NEWER
+                    var textureKey = (texture.OriginalTexture.GetEntityId(), texture.BitDepth, texture.Cutout);
+#else
                     var textureKey = (texture.OriginalTexture.GetInstanceID(), texture.BitDepth, texture.Cutout);
-
+#endif
                     // Check if we've already processed this texture
                     if (textureToIndexMap.TryGetValue(textureKey, out int existingIndex))
                     {
@@ -154,7 +161,11 @@ namespace SplashEdit.RuntimeCode
 
                 for (int i = 0; i < obj.Textures.Count; i++)
                 {
+#if UNITY_6000_4_OR_NEWER
+                    var textureKey = (obj.Textures[i].OriginalTexture.GetEntityId(), obj.Textures[i].BitDepth, obj.Textures[i].Cutout);
+#else
                     var textureKey = (obj.Textures[i].OriginalTexture.GetInstanceID(), obj.Textures[i].BitDepth, obj.Textures[i].Cutout);
+#endif
                     if (textureToIndexMap.TryGetValue(textureKey, out int newIndex))
                     {
                         oldToNewIndexMap[i] = newIndex;
